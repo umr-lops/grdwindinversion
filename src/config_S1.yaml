@@ -1,0 +1,8 @@
+S1A:
+    GMF_VV_NAME: "cmod5n"
+    GMF_VH_NAME: "gmf_s1_v2"
+    apply_flattening: True
+S1B:
+    GMF_VV_NAME: "cmod5n"
+    GMF_VH_NAME: "gmf_s1_v2"
+    apply_flattening: True
