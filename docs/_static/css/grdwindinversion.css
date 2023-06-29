@@ -1,0 +1,10 @@
+@import url("theme.css");
+
+.wy-nav-content {
+	max-width: 1000px !important;
+}
+dl.py.property {
+	display: block !important;
+}
+
+
