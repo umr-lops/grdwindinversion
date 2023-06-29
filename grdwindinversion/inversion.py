@@ -10,6 +10,7 @@ from pathlib import Path
 from scipy.ndimage import binary_dilation
 
 import re, string, os
+from load_config import getConf
 
 # optional debug messages
 import logging
@@ -95,10 +96,9 @@ def makeL2(filename, out_folder, config_path):
 
 
     # land mask
-    #fameta.set_mask_feature('land', '/home/datawork-cersat-public/cache/public/ftp/project/sarwing/xsardata/land-polygons-split-4326/land_polygons.shp')
 
-    meta.set_raster('ecmwf_0100_1h','/home/datawork-cersat-public/provider/ecmwf/forecast/hourly/0100deg/netcdf_light_REPRO_tree/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc')
-    meta.set_raster('ecmwf_0125_1h','/home/datawork-cersat-intranet/project/ecmwf/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc')
+    meta.set_raster(getConf['ecmwf_0100_1h'])
+    meta.set_raster(getConf['ecmwf_0125_1h'])
 
     ## only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
     for ecmwf_name in [ 'ecmwf_0125_1h', 'ecmwf_0100_1h' ]:
@@ -132,7 +132,7 @@ def makeL2(filename, out_folder, config_path):
         raise Exception('the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
 
     try :
-        xsar_obj_1000m = fct_dataset(meta, resolution='1000m')    
+        xsar_obj_1000m = fct_dataset(meta, resolution='1000m')
         dataset_1000m = xsar_obj_1000m.datatree['measurement'].to_dataset()
         dataset_1000m = dataset_1000m.rename(map_model)
         #add attributes

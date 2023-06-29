@@ -1,0 +1,2 @@
+'ecmwf_0100_1h': '../ecmwf/forecast/hourly/0100deg/netcdf_light_REPRO_tree/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc'
+'ecmwf_0125_1h': '../ecmwf/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc'
