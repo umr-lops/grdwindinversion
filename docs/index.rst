@@ -12,6 +12,10 @@ Examples
 
 * :doc:`examples/wind-inversion-from-grd`
 
+Functions description
+.....................
+
+* :doc:`modules`
 
 
 
@@ -22,20 +26,22 @@ Examples
    readme
    installation
    usage
+   examples/wind-inversion-from-grd
+   algorithm
    modules
    contributing
    authors
    history
 
 
-.. toctree::
-   :maxdepth: 1
-   :caption: Examples
 
-   examples/wind-inversion-from-grd
 
 Indices and tables
 ==================
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+
+.. _jupyter notebook: https://jupyter.org/
+.. _recommended installation: installation.html
