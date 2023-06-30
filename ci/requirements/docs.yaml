@@ -1,0 +1,20 @@
+name: grdwindinversion-docs
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - sphinx>=4
+  - sphinx-book-theme
+  - ipython
+  - myst-parser
+  - jinja2<=3.03
+  - pandoc
+  - numpydoc
+  - sphinx-rtd-theme
+  - nbsphinx
+  - jupyter-sphinx
+  - sphinxcontrib-programoutput
+  - aiohttp
+  - holoviews
+  - pip:
+    - -e ../..
