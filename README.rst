@@ -26,12 +26,13 @@ Package to perform Wind inversion from GRD Level-1 SAR images
 Features
 --------
 
-* TODO
+This Python library (based on `xarray`) allows to perform wind inversion from level-1 GRD (compressed magnitude image) or SLC (I and Q complexe image in slant range).
+
 
 Credits
 -------
 
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+This package was created with Cookiecutter_.
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
