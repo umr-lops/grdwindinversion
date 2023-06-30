@@ -15,13 +15,19 @@ def mean(subArray):
     return np.nanmean(subArray)
 
 def createLowerResL2(inputfile, resolution):
+    """
+
+    :param inputfile: str
+    :param resolution: int e.g. 100 in meters
+    :return:
+    """
     outputfile = inputfile.replace(".nc","__"+str(resolution)+".nc")
     if (os.path.exists(outputfile)):
         print("ok", outputfile, "already existing")
         return
     if (os.path.exists(inputfile) == False):
         print("not ok", inputfile, "not existing")
-        return  
+        return
 
 
     try:
@@ -50,8 +56,8 @@ def createLowerResL2(inputfile, resolution):
             if ((x-a)**2 + (y-b)**2) >= r**2 + epsilon:
                 footprint[x][y] = 0
     logger.debug("Finished generating footprint.")
-    
-    ## mask 
+
+    ## mask
     mask_land = np.ma.getmaskarray(ds_base.owiLandFlag)
     for varName in ds_base.variables:
         if (varName in ["owiAzSize","owiRaSize","spatial_ref","owiLandFlag","owiMask","pol"]):
@@ -59,12 +65,12 @@ def createLowerResL2(inputfile, resolution):
             continue
         dims = ds_base[varName].dims
         attrs =  ds_base[varName].attrs
-    
+
         mask_var_final = (np.isnan(ds_base[varName]) | mask_land).values
         ds_base[varName].values[mask_var_final] = np.nan
-        
+
         arrayOut = np.empty_like(ds_base[varName])
-        
+
         generic_filter(ds_base[varName].values, mean, footprint=footprint, mode='constant', output=arrayOut, cval=np.nan)#Computing lower resolution
 
         ds_res[varName] = xr.DataArray(
@@ -74,22 +80,21 @@ def createLowerResL2(inputfile, resolution):
             attrs=ds_base[varName].attrs,
         )
         ds_res[varName].attrs["comment_resolution"] = "variable at " + str(resolution) + "km resolution"
-    
+
     #plt.figure()
     #plt.pcolormesh(ds_res[varName],cmap='jet') ; plt.colorbar()
     #plt.title(varName)
-    
+
     logger.debug("Finished to compute multi-res data. Closing files...")
     ds_res.to_netcdf(outputfile)
     df = ds_res.to_dataframe()
     df = df.assign(**ds_res.attrs)
     df.reset_index(drop=False,inplace=True)
     df.to_csv(outputfile.replace(".nc",".csv"))
-      
-    print("ok", outputfile)
 
-    ds_res.close()   
+    logging.info("ok outputfile=%s", outputfile)
+
+    ds_res.close()
     ds_base.close()
     logger.debug("Files closed. Exiting.")
-    
-    
+

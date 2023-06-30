@@ -10,7 +10,7 @@ from pathlib import Path
 from scipy.ndimage import binary_dilation
 
 import re, string, os
-from load_config import getConf
+from grdwindinversion.load_config import getConf
 
 # optional debug messages
 import logging
@@ -19,6 +19,11 @@ logging.getLogger('xsarsea.windspeed').setLevel(logging.DEBUG) # or .setLevel(lo
 
 
 def getSensorMetaDataset(filename):
+    """
+
+    :param filename: str SAR SAFE or equivalent
+    :return:
+    """
     if ("S1A" in filename) :
         return "S1A","SENTINEL-1 A",xsar.Sentinel1Meta,xsar.Sentinel1Dataset
     elif ("S1B" in filename):
@@ -31,6 +36,14 @@ def getSensorMetaDataset(filename):
         raise ValueError("must be S1A|S1B|RS2|RCM, got filename %s" % filename)
 
 def getOutputName2(input_file, out_folder,sensor,meta):
+    """
+
+    :param input_file: str
+    :param out_folder: str
+    :param sensor: str S1A or S1B
+    :param meta: obj `xsar.Sentinel1Meta` (or any other supported SAR mission)
+    :return:
+    """
     basename = os.path.basename(input_file)
 
     meta_start_date = meta.start_date.split(".")[0].replace("-", "").replace(":", "").replace(" ", "t").replace("Z", "")
@@ -66,6 +79,14 @@ def getOutputName2(input_file, out_folder,sensor,meta):
         raise ValueError("sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
 
 def makeL2(filename, out_folder, config_path):
+    """
+
+    :param filename: str
+    :param out_folder: str
+    :param config_path: str
+    :return:
+     out_file: str
+    """
     # 1 - Find sensor, and associated config (GMFs to use, flattening or not)
     sensor,sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(filename)
     map_model = None
