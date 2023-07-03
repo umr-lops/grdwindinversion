@@ -25,6 +25,7 @@ jobs:
                 apt-get update
                 apt-get -y install software-properties-common
                 add-apt-repository -y ppa:deadsnakes/ppa
+                apt-get -y install libgeos-dev
                 apt-get update
       - name: Set up Python ${{ matrix.python-version }}
         run: |
