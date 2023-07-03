@@ -55,6 +55,7 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/agrouaze/grdwindinversion',
-    version='0.1.0',
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     zip_safe=False,
 )
