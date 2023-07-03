@@ -50,7 +50,7 @@ jobs:
       - name: Check the built archives
         run: |
           twine check dist/*
-          python -m pip install dist/*.whl
+          python${{ matrix.python-version }} -m pip install dist/*.whl
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
