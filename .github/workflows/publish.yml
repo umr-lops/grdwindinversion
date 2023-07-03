@@ -7,6 +7,7 @@ on:
 jobs:
   publish:
     name: Publish to PyPI
+    container: ghcr.io/osgeo/gdal:alpine-normal-latest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
