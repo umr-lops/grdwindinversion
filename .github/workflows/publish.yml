@@ -4,6 +4,9 @@ on:
   release:
     types: [created]
 
+env:
+  DEBIAN_FRONTEND: noninteractive
+
 jobs:
   publish:
     name: Publish to PyPI
