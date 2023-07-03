@@ -7,8 +7,9 @@ on:
 jobs:
   publish:
     name: Publish to PyPI
-    container: ghcr.io/osgeo/gdal:alpine-normal-latest
     runs-on: ubuntu-latest
+#    container: ghcr.io/osgeo/gdal:alpine-normal-latest
+    container: ghcr.io/osgeo/gdal:ubuntu-full-latest
     strategy:
         fail-fast: false
         matrix:
@@ -32,10 +33,10 @@ jobs:
                   g++
                 chown -R $(whoami) /github/home/
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+#      - name: Set up Python
+#        uses: actions/setup-python@v4
+#        with:
+#          python-version: '3.x'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip build twine
