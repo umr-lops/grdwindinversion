@@ -1,0 +1,54 @@
+[project]
+name = "grdwindinversion"
+description="Package to perform Wind inversion from GRD Level-1 SAR images"
+readme = "README.rst"
+#long_description='Python library using xarray objects to compute wind speed from SAR observations over ocean'
+#long_description_content_type='text/x-rst'
+#url='https://github.com/agrouaze/grdwindinversion'
+requires-python = ">= 3.9"
+license = {text = "MIT"}
+#author="Antoine Grouazel"
+#author_email='antoine.grouazel@ifremer.fr'
+dependencies = [
+    "xsar",
+    "xsarsea",
+    "xarray",
+    "xarray-datatree",
+    "pyyaml",
+    "numpy",
+    "scipy",
+    "fsspec",
+    "aiohttp",
+]
+
+dynamic = ["version"]
+classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Natural Language :: English',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+    ]
+
+[build-system]
+requires = ["setuptools>=64.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["grdwindinversion"]
+
+[tool.setuptools_scm]
+fallback_version = "999"
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+float_to_top = true
+default_section = "THIRDPARTY"
+known_first_party = "grdwindinversion"
