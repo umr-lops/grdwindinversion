@@ -16,7 +16,7 @@ from grdwindinversion.load_config import getConf
 import logging
 
 logging.basicConfig()
-logging.getLogger('xsarsea.windspeed').setLevel(logging.DEBUG)  # or .setLevel(logging.INFO)
+logging.getLogger('xsarsea.windspeed').setLevel(logging.INFO)  # or .setLevel(logging.INFO)
 # encode gcps as json string
 import json
 
@@ -97,7 +97,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False):
     :param filename: str
     :param out_folder: str
     :param config_path: str
-    :param overwrite: bool True -> existing files will be overwrite
+    :param overwrite: bool True -> existing files will be overwritten
     :return:
      out_file: str
     """
@@ -147,8 +147,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False):
                                                                                      '%Y-%m-%d %H:%M:%S'))[1]
 
         if not os.path.isfile(ecmwf_file):
-            ## temporary
-            #  if repro do not exists we look at not repro folder (only one will exist after)
+            ##temporary
+            # if repro does not exist we look at not repro folder (only one will exist after)
             if ecmwf_name == "ecmwf_0100_1h":
                 ecmwf_infos['resource'] = ecmwf_infos['resource'].replace("netcdf_light_REPRO_tree", "netcdf_light")
                 try:
@@ -349,6 +349,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False):
     dataset_1000m = dataset_1000m.drop_dims('pol')
     dataset_1000m = dataset_1000m.rename_dims({"line": "owiAzSize", "sample": "owiRaSize"})
     dataset_1000m = dataset_1000m.rename({"line": "owiAzSize", "sample": "owiRaSize"})
+    # dataset_1000m = dataset_1000m.swap_dims({'line':'owiAzSize','sample':'owiRaSize'})
     # xsar_obj_1000m.recompute_attrs()
     ds_1000 = dataset_1000m.compute()
 
@@ -369,7 +370,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False):
     ds_1000.attrs["pythonVersion"] = "3.1"
     ds_1000.attrs["polarisationRatio"] = "/"
     ds_1000.attrs["l2ProcessingUtcTime"] = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
-    ds_1000.attrs["processingCenter"] = "/";
+    ds_1000.attrs["processingCenter"] = "/"
     try:
         ds_1000.attrs["firstMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['start_date'],
                                                                            "%Y-%m-%d %H:%M:%S.%f").strftime(
@@ -384,13 +385,13 @@ def makeL2(filename, out_folder, config_path,overwrite=False):
         ds_1000.attrs["lastMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['stop_date'],
                                                                           "%Y-%m-%d %H:%M:%S").strftime(
             "%Y-%m-%dT%H:%M:%SZ")
-    ds_1000.attrs["clmSource"] = "/";
-    ds_1000.attrs["bathySource"] = "/";
-    ds_1000.attrs["owiAlgorithmVersion"] = "/";
-    ds_1000.attrs["gmf"] = config['GMF_VV_NAME'] + ", " + config["GMF_VH_NAME"];
+    ds_1000.attrs["clmSource"] = "/"
+    ds_1000.attrs["bathySource"] = "/"
+    ds_1000.attrs["owiAlgorithmVersion"] = "/"
+    ds_1000.attrs["gmf"] = config['GMF_VV_NAME'] + ", " + config["GMF_VH_NAME"]
     ds_1000.attrs["iceSource"] = "/"
     ds_1000.attrs["owiNoiseCorrection"] = "False"
-    ds_1000.attrs["inversionTabGMF"] = config['GMF_VV_NAME'] + ", " + config["GMF_VH_NAME"];
+    ds_1000.attrs["inversionTabGMF"] = config['GMF_VV_NAME'] + ", " + config["GMF_VH_NAME"]
     ds_1000.attrs["wnf_3km_average"] = "/"
     ds_1000.attrs["owiWindSpeedSrc"] = "owiWindSpeed"
     ds_1000.attrs["owiWindDirectionSrc"] = "/"

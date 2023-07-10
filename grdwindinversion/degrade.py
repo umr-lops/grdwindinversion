@@ -17,7 +17,7 @@ def createLowerResL2(inputfile, resolution,overwrite=False):
     """
 
     :param inputfile: str
-    :param resolution: int e.g. 100 in meters
+    :param resolution: int e.g. 100 in kilometers
     :return:
     """
     outputfile = inputfile.replace(".nc", "__" + str(resolution) + ".nc")
