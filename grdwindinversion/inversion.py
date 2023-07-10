@@ -241,7 +241,6 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['owiMask'], np.nan,
                                              dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
-    pdb.set_trace()
     if len(dataset_1000m.pol.values)==2:
         dual_pol = True
     else:
@@ -293,7 +292,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
                 owiNesz_cross_final=(['line', 'sample'], dataset_1000m.owiNesz_cross.values))
             dataset_1000m['owiNesz_cross_final'].attrs["comment"] = 'nesz has not been flattened'
         ## dsig
-        dataset_1000m["owiDsig_cross"] = windspeed.get_dsig(config["GMF_VH_NAME"], dataset_1000m.owiIncidenceAngle,
+        dataset_1000m["owiDsig_cross"] = windspeed.get_dsig(config["GMF_"+crosspol+"_NAME"], dataset_1000m.owiIncidenceAngle,
                                                             dataset_1000m.owiNrcs_cross, dataset_1000m.owiNesz_cross_final)
         dataset_1000m.owiDsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
 
@@ -302,13 +301,13 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     # 4 - Inversion
     ## 4a - co & dual inversion
     windspeed_co, windspeed_dual = windspeed.invert_from_model(
-        inc = dataset_1000m.owiIncidenceAngle,
-        sigma0=dataset_1000m.owiNrcs,
+        dataset_1000m.owiIncidenceAngle,
+        dataset_1000m.owiNrcs,
         sigma0_dual=owiNrcs_cross,
         # ancillary_wind=-np.conj(xsar_obj_1000m.dataset['ancillary_wind']),
         ancillary_wind=-dataset_1000m.ancillary_wind,
         dsig_cr=dataset_1000m.owiDsig_cross,
-        model=(config["GMF_VV_NAME"], config["GMF_VH_NAME"]))
+        model=(config["GMF_"+copol+"_NAME"], config["GMF_"+crosspol+"_NAME"]))
 
     dataset_1000m["owiWindSpeed_co"] = np.abs(windspeed_co)
     dataset_1000m["owiWindSpeed_co"].attrs["comment"] = dataset_1000m["owiWindSpeed_co"].attrs["comment"].replace(
@@ -334,13 +333,13 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             dataset_1000m.owiNrcs_cross.values,
             # ancillary_wind=-np.conj(xsar_obj_1000m.dataset['ancillary_wind']),
             dsig_cr=dataset_1000m.owiDsig_cross.values,
-            model=config["GMF_VH_NAME"])
+            model=config["GMF_"+crosspol+"_NAME"])
 
         windspeed_cr = np.abs(windspeed_cr)
         dataset_1000m = dataset_1000m.assign(owiWindSpeed_cross=(['line', 'sample'], windspeed_cr))
         dataset_1000m.owiWindSpeed_cross.attrs['comment'] = "wind speed inverted from model %s (%s)" % (
-        config["GMF_VH_NAME"], "VH")
-        dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_VH_NAME"]
+        config["GMF_"+crosspol+"_NAME"], crosspol)
+        dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_"+crosspol+"_NAME"]
         dataset_1000m.owiWindSpeed_cross.attrs['units'] = 'm/s'
     # 5 - saving
 
@@ -410,10 +409,10 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     ds_1000.attrs["bathySource"] = "/"
     ds_1000.attrs['oswAlgorithmName'] = 'grdwindinversion'
     ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
-    ds_1000.attrs["gmf"] = config['GMF_VV_NAME'] + ", " + config["GMF_VH_NAME"]
+    ds_1000.attrs["gmf"] = config['GMF_'+copol+'_NAME'] + ", " + config["GMF_"+crosspol+"_NAME"]
     ds_1000.attrs["iceSource"] = "/"
     ds_1000.attrs["owiNoiseCorrection"] = "False"
-    ds_1000.attrs["inversionTabGMF"] = config['GMF_VV_NAME'] + ", " + config["GMF_VH_NAME"]
+    ds_1000.attrs["inversionTabGMF"] = config['GMF_'+copol+'_NAME'] + ", " + config["GMF_"+crosspol+"_NAME"]
     ds_1000.attrs["wnf_3km_average"] = "/"
     ds_1000.attrs["owiWindSpeedSrc"] = "owiWindSpeed"
     ds_1000.attrs["owiWindDirectionSrc"] = "/"

@@ -16,7 +16,7 @@ def get_memory_usage(unit='Go', var='ru_maxrss', force_psutil=False):
 
     try:
         if force_psutil:
-            mldkfmlsdkmk
+            on_purpose_error
         import resource
         mems = {}
         mems['ru_maxrss'] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / factor
