@@ -32,6 +32,8 @@ if __name__ == '__main__':
     t0 = time.time()
     input_file = args.input_file.rstrip('/')
     logging.info('input file: %s',input_file)
+    if '1SDV' not in input_file and '_VV_VH' not in input_file :
+        raise Exception('this processor only handle dual polarization acquisitions VV+VH for now.')
     if args.config_file is None:
         if 'S1' in input_file:
             config_file = 'config_S1.yaml'
@@ -48,6 +50,7 @@ if __name__ == '__main__':
     out_folder = args.outputdir
 
     out_file = makeL2(input_file, out_folder, config_file,overwrite=args.overwrite)
+    logging.info('out_file: %s',out_file)
     outpath = createLowerResL2(out_file, resolution=args.resolution)
     # logging.info('%s successfully written', outpath)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
