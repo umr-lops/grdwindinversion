@@ -4,7 +4,7 @@ __all__ = ['degrade', 'inversion']
 # except ImportError: # for Python<3.8
 #     import importlib_metadata as metadata
 # __version__ = metadata.version('grdwindinversion')
-
+from grdwindinversion import *
 from importlib.metadata import version
 try:
     __version__ = version("grdwindinversion")
