@@ -303,7 +303,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     windspeed_co, windspeed_dual = windspeed.invert_from_model(
         dataset_1000m.owiIncidenceAngle,
         dataset_1000m.owiNrcs,
-        sigma0_dual=owiNrcs_cross,
+        owiNrcs_cross,
         # ancillary_wind=-np.conj(xsar_obj_1000m.dataset['ancillary_wind']),
         ancillary_wind=-dataset_1000m.ancillary_wind,
         dsig_cr=dataset_1000m.owiDsig_cross,
