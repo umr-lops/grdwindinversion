@@ -33,8 +33,10 @@ def processor_starting_point():
     t0 = time.time()
     input_file = args.input_file.rstrip('/')
     logging.info('input file: %s', input_file)
-    if '1SDV' not in input_file and '_VV_VH' not in input_file:
-        raise Exception('this processor only handle dual polarization acquisitions VV+VH for now.')
+    # if '1SDV' not in input_file and '_VV_VH' not in input_file:
+    #     raise Exception('this processor only handle dual polarization acquisitions VV+VH for now.')
+    # if '1SSH' in input_file or '1SDH' in input_file or '_HH_HV' in input_file:
+    #     raise Exception('this processor only handle acquisitions with VV or VV+VH polarization for now.')
     if args.config_file is None:
         if 'S1' in input_file:
             config_file = 'config_S1.yaml'
