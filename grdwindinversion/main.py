@@ -5,6 +5,7 @@ import time
 import logging
 
 OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v5"
+
 def processor_starting_point():
     import argparse, os
     from pathlib import Path
@@ -17,8 +18,6 @@ def processor_starting_point():
                         required=False, default=None)
     parser.add_argument('--outputdir', required=False, default=OUT_DEFAULT)
     parser.add_argument('--verbose', action='store_true', default=False)
-    parser.add_argument('--resolution', help='output resolution (i.e. posting) in kilometers', required=False,
-                        default=25, type=int)
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='overwrite existing .nc files [default is False]', required=False)
 
@@ -54,7 +53,6 @@ def processor_starting_point():
 
     out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
     logging.info('out_file: %s', out_file)
-    outpath = createLowerResL2(out_file, resolution=args.resolution)
     # logging.info('%s successfully written', outpath)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
     logging.info('done in %1.3f min', (time.time() - t0) / 60.)

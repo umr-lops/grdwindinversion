@@ -32,7 +32,7 @@ def getSensorMetaDataset(filename):
     """
 
     :param filename: str SAR SAFE or equivalent
-    :return:
+    :return: 
     """
     if ("S1A" in filename):
         return "S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
@@ -118,8 +118,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             raise KeyError("sensor %s not in this config" % sensor)
     else:
         raise FileNotFoundError('config_path do not exists, got %s ' % config_path)
-    # 2 - Add raster and load dataset at 1km resoltuion
-
+        
+    # 2 - Add raster and load dataset
     meta = fct_meta(filename)
 
     out_file = getOutputName2(filename, out_folder, sensor, meta)
@@ -189,15 +189,17 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         logging.error(e)
         sys.exit(-1)
 
+    #variables to not keep in the L2 
     black_list = ['digital_number', 'gamma0_raw', 'negz',
                   'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
                   'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
                   "sampleSpacing", "noise_lut", "noise_lut_azi",
                   'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "sigma0_raw", "beta0"]
+    
     variables = list(set(dataset_1000m) - set(black_list))
-    # complex not allowed in netcdf
     dataset_1000m = dataset_1000m[variables]
 
+    #rename to match sarwing naming
     dataset_1000m = dataset_1000m.rename({
         'longitude': 'owiLon',
         'latitude': 'owiLat',
