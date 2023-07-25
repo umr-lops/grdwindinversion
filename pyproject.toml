@@ -52,3 +52,6 @@ skip_gitignore = true
 float_to_top = true
 default_section = "THIRDPARTY"
 known_first_party = "grdwindinversion"
+
+[project.scripts]
+SAR_L1-to-L2_wind_processor = "grdwindinversion.main:processor_starting_point"
