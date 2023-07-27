@@ -4,16 +4,17 @@ import traceback
 import xsar
 import xsarsea
 from xsarsea import windspeed
-import grdwindinversion
+#import grdwindinversion
 import xarray as xr
 import numpy as np
 import sys
+sys.path.append("./")
 import datetime, os, yaml
 from pathlib import Path
 from scipy.ndimage import binary_dilation
 
 import re, string, os
-from grdwindinversion.load_config import getConf
+from load_config import getConf
 
 # optional debug messages
 import logging
@@ -132,6 +133,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     logging.debug('conf: %s', getConf())
     ec01 = getConf()['ecmwf_0100_1h']
     ec0125 = getConf()['ecmwf_0125_1h']
+    print(ec01,ec0125)
     logging.debug('ec01 : %s', ec01)
     meta.set_raster('ecmwf_0100_1h', ec01)
     meta.set_raster('ecmwf_0125_1h', ec0125)
@@ -243,23 +245,27 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['owiMask'], np.nan,
                                              dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
+    
     if len(dataset_1000m.pol.values)==2:
         dual_pol = True
     else:
         dual_pol = False
+        
     if 'VV' in dataset_1000m.pol.values:
         copol = 'VV'
         crosspol = 'VH'
         copol_gmf = 'VV'
         crosspol_gmf = 'VH'
     else:
-        logging.warning('for now this processor does not support HH+HV acquisitions\n '
-                        'it wont crash but it will use VV+VH GMF for wind inversion -> wrong hypothesis\n '
-                        '!! WIND SPEED IS NOT USABLE !!')
         copol = 'HH'
         crosspol = 'HV'
         copol_gmf = 'VV'
         crosspol_gmf = 'VH'
+        
+        print('for now this processor does not support HH+HV acquisitions\n '
+                        'it wont crash but it will use VV+VH GMF for wind inversion -> wrong hypothesis\n '
+                        '!! WIND SPEED IS NOT USABLE !!')
+
 
     dataset_1000m['owiNrcs'] = dataset_1000m['sigma0_ocean'].sel(pol=copol)
     dataset_1000m.owiNrcs.attrs['units'] = 'm^2 / m^2'
@@ -269,7 +275,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         dataset_1000m.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
         dataset_1000m.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         owiNrcs_cross = dataset_1000m['owiNrcs_cross']
-
+        
         # unused
         dataset_1000m['owiNrcs_no_noise_correction'] = xr.full_like(dataset_1000m.owiNrcs, np.nan)
         dataset_1000m.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
@@ -312,6 +318,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
 
     # 4 - Inversion
     ## 4a - co & dual inversion
+    
+    print("starting inversion dualpol = " + str(dual_pol))
     windspeeds = windspeed.invert_from_model(
         dataset_1000m.owiIncidenceAngle,
         dataset_1000m.owiNrcs,
@@ -324,6 +332,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         windspeed_co, windspeed_dual = windspeeds
     else:
         windspeed_co = windspeeds
+    print("done")
 
     dataset_1000m["owiWindSpeed_co"] = np.abs(windspeed_co)
     dataset_1000m["owiWindSpeed_co"].attrs["comment"] = dataset_1000m["owiWindSpeed_co"].attrs["comment"].replace(
@@ -358,6 +367,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         config["GMF_"+crosspol_gmf+"_NAME"], crosspol)
         dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_"+crosspol_gmf+"_NAME"]
         dataset_1000m.owiWindSpeed_cross.attrs['units'] = 'm/s'
+        print("done")
+
     # 5 - saving
 
     dataset_1000m = dataset_1000m.assign(
@@ -424,8 +435,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             "%Y-%m-%dT%H:%M:%SZ")
     ds_1000.attrs["clmSource"] = "/"
     ds_1000.attrs["bathySource"] = "/"
-    ds_1000.attrs['oswAlgorithmName'] = 'grdwindinversion'
-    ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
+    #ds_1000.attrs['oswAlgorithmName'] = 'grdwindinversion'
+    #ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
     ds_1000.attrs["gmf"] = config['GMF_'+copol_gmf+'_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
     ds_1000.attrs["iceSource"] = "/"
     ds_1000.attrs["owiNoiseCorrection"] = "False"
@@ -496,5 +507,6 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     ds_1000.close()
 
     logging.info("OK for %s ", os.path.basename(filename))
+    print("done")
 
     return out_file

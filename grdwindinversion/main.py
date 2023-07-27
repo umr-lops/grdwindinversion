@@ -3,7 +3,7 @@ from utils import get_memory_usage
 import time
 import logging
 
-OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v5"
+OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v6"
 
 def processor_starting_point():
     import argparse, os
