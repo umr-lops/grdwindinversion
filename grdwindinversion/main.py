@@ -1,9 +1,9 @@
-from inversion import makeL2
+from inversion import makeL2, makeL2_tempo_Vinc
 from utils import get_memory_usage
 import time
 import logging
 
-OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v6"
+OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_test"
 
 def processor_starting_point():
     import argparse, os
@@ -50,7 +50,9 @@ def processor_starting_point():
         config_file = args.config_file
     out_folder = args.outputdir
 
-    out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
+    #out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
+    out_file = makeL2_tempo_Vinc(input_file, out_folder, config_file, overwrite=args.overwrite)
+
     logging.info('out_file: %s', out_file)
     # logging.info('%s successfully written', outpath)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
