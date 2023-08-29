@@ -47,7 +47,7 @@ jobs:
           python${{ matrix.python-version }} -m pip install --upgrade pip build twine
       - name: Build
         run: |
-          python${{ matrix.python-version }} -m build --sdist --wheel .
+          python${{ matrix.python-version }} -m build --sdist .
       - name: Check the built archives
         run: |
           twine check dist/*
