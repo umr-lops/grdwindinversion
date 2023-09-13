@@ -4,7 +4,7 @@ import grdwindinversion
 import time
 import logging
 
-OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v5"
+
 def processor_starting_point():
     import argparse, os
     from pathlib import Path
@@ -15,7 +15,7 @@ def processor_starting_point():
     parser.add_argument('--config_file',
                         help='config file path [if not provided will take config file based on input file]',
                         required=False, default=None)
-    parser.add_argument('--outputdir', required=False, default=OUT_DEFAULT)
+    parser.add_argument('--outputdir', required=True)
     parser.add_argument('--verbose', action='store_true', default=False)
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='overwrite existing .nc files [default is False]', required=False)
