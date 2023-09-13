@@ -1,4 +1,4 @@
-from inversion import makeL2, makeL2_tempo_Vinc
+from grdwindinversion.inversion import makeL2, makeL2_tempo_Vinc
 from utils import get_memory_usage
 import time
 import logging
