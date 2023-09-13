@@ -1,10 +1,10 @@
-from inversion import makeL2, makeL2_tempo_Vinc
-from utils import get_memory_usage
+from grdwindinversion.inversion import makeL2
+from grdwindinversion.utils import get_memory_usage
+import grdwindinversion
 import time
 import logging
 
-OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_test"
-
+OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v5"
 def processor_starting_point():
     import argparse, os
     from pathlib import Path
@@ -37,24 +37,21 @@ def processor_starting_point():
     #     raise Exception('this processor only handle acquisitions with VV or VV+VH polarization for now.')
     if args.config_file is None:
         if 'S1' in input_file:
-            config_file = 'config_S1.yaml'
+            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_S1.yaml')
         elif 'RCM' in input_file:
-            config_file = 'config_RCM.yaml'
+            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_RCM.yaml')
         elif 'RS2' in input_file:
-            config_file = 'config_RS2.yaml'
+            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_RS2.yaml')
         elif 'hy2b' in input_file:
-            config_file = 'config_hy2b.yaml'
+            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_hy2b.yaml')
         else:
             raise Exception('config data file cannot be defined using the input filename')
     else:
         config_file = args.config_file
     out_folder = args.outputdir
 
-    #out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
-    out_file = makeL2_tempo_Vinc(input_file, out_folder, config_file, overwrite=args.overwrite)
-
+    out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
     logging.info('out_file: %s', out_file)
-    # logging.info('%s successfully written', outpath)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
     logging.info('done in %1.3f min', (time.time() - t0) / 60.)
 

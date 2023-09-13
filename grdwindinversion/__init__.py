@@ -1,4 +1,4 @@
-__all__ = ['degrade', 'inversion']
+__all__ = ['inversion']
 # try:
 #     from importlib import metadata
 # except ImportError: # for Python<3.8
