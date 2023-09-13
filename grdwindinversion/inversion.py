@@ -4,11 +4,10 @@ import traceback
 import xsar
 import xsarsea
 from xsarsea import windspeed
-#import grdwindinversion
+import grdwindinversion
 import xarray as xr
 import numpy as np
 import sys
-# sys.path.append("./")
 import datetime, os, yaml
 from pathlib import Path
 from scipy.ndimage import binary_dilation
@@ -133,7 +132,6 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     logging.debug('conf: %s', getConf())
     ec01 = getConf()['ecmwf_0100_1h']
     ec0125 = getConf()['ecmwf_0125_1h']
-    print(ec01,ec0125)
     logging.debug('ec01 : %s', ec01)
     meta.set_raster('ecmwf_0100_1h', ec01)
     meta.set_raster('ecmwf_0125_1h', ec0125)
@@ -437,8 +435,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             "%Y-%m-%dT%H:%M:%SZ")
     ds_1000.attrs["clmSource"] = "/"
     ds_1000.attrs["bathySource"] = "/"
-    #ds_1000.attrs['oswAlgorithmName'] = 'grdwindinversion'
-    #ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
+    ds_1000.attrs['owiAlgorithmName'] = 'grdwindinversion'
+    ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
     ds_1000.attrs["gmf"] = config['GMF_'+copol_gmf+'_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
     ds_1000.attrs["iceSource"] = "/"
     ds_1000.attrs["owiNoiseCorrection"] = "False"

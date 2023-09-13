@@ -1,5 +1,5 @@
 from grdwindinversion.inversion import makeL2, makeL2_tempo_Vinc
-from utils import get_memory_usage
+from grdwindinversion.utils import get_memory_usage
 import time
 import logging
 
@@ -50,8 +50,8 @@ def processor_starting_point():
         config_file = args.config_file
     out_folder = args.outputdir
 
-    #out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
-    out_file = makeL2_tempo_Vinc(input_file, out_folder, config_file, overwrite=args.overwrite)
+    out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
+    #out_file = makeL2_tempo_Vinc(input_file, out_folder, config_file, overwrite=args.overwrite)
 
     logging.info('out_file: %s', out_file)
     # logging.info('%s successfully written', outpath)
