@@ -1,10 +1,10 @@
-from grdwindinversion.inversion import makeL2
-from grdwindinversion.degrade import *
-from grdwindinversion.utils import get_memory_usage
-import time
+from inversion import makeL2
+from degrade import *
+from utils import get_memory_usage
+import times
 import logging
 
-OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prod_v5"
+OUT_DEFAULT = "/home/datawork-cersat-public/cache/public/ftp/project/L2GRD/prodv7/fromModule"
 def processor_starting_point():
     import argparse, os
     from pathlib import Path
