@@ -33,7 +33,7 @@ def getSensorMetaDataset(filename):
     """
 
     :param filename: str SAR SAFE or equivalent
-    :return: 
+    :return:
     """
     if ("S1A" in filename):
         return "S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
@@ -119,7 +119,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             raise KeyError("sensor %s not in this config" % sensor)
     else:
         raise FileNotFoundError('config_path do not exists, got %s ' % config_path)
-        
+
     # 2 - Add raster and load dataset
     meta = fct_meta(filename)
 
@@ -191,13 +191,13 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         logging.error(e)
         sys.exit(-1)
 
-    #variables to not keep in the L2 
+    #variables to not keep in the L2
     black_list = ['digital_number', 'gamma0_raw', 'negz',
                   'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
                   'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
                   "sampleSpacing", "noise_lut", "noise_lut_azi",
                   'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "sigma0_raw", "beta0"]
-    
+
     variables = list(set(dataset_1000m) - set(black_list))
     dataset_1000m = dataset_1000m[variables]
 
@@ -246,12 +246,12 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
                                              dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
 
-    
+
     if len(dataset_1000m.pol.values)==2:
         dual_pol = True
     else:
         dual_pol = False
-        
+
     if 'VV' in dataset_1000m.pol.values:
         copol = 'VV'
         crosspol = 'VH'
@@ -262,7 +262,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         crosspol = 'HV'
         copol_gmf = 'VV'
         crosspol_gmf = 'VH'
-        
+
         print('for now this processor does not support HH+HV acquisitions\n '
                         'it wont crash but it will use VV+VH GMF for wind inversion -> wrong hypothesis\n '
                         '!! WIND SPEED IS NOT USABLE !!')
@@ -276,7 +276,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         dataset_1000m.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
         dataset_1000m.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         owiNrcs_cross = dataset_1000m['owiNrcs_cross']
-        
+
         # unused
         dataset_1000m['owiNrcs_no_noise_correction'] = xr.full_like(dataset_1000m.owiNrcs, np.nan)
         dataset_1000m.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
@@ -290,7 +290,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     else:
         owiNrcs_cross = None
 
-    print(owiNrcs_cross
+    # print(owiNrcs_cross
 
 
     ##NESZ & DSIG
@@ -320,7 +320,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
 
     # 4 - Inversion
     ## 4a - co & dual inversion
-    
+
     print("starting inversion dualpol = " + str(dual_pol))
     windspeeds = windspeed.invert_from_model(
         dataset_1000m.owiIncidenceAngle,
@@ -513,38 +513,38 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
 
     return out_file
 
-          
+
 
 def makeL2_tempo_Vinc(filename, out_folder, config_path):
     # 1 - Find sensor, and associated config (GMFs to use, flattening or not)
     sensor,sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(filename)
-        
+
     if Path(config_path).exists():
         config = yaml.load(
             Path(config_path).open(),
             Loader=yaml.FullLoader
         )
-        try : 
+        try :
             config = config[sensor]
-        except Exception: 
+        except Exception:
             raise KeyError("sensor %s not in this config" %sensor)
-    else : 
+    else :
         raise FileNotFoundError('config_path do not exists, got %s '  % config_path)
 
 
 
 
     # 2 - Add raster and load dataset at 1km resoltuion
-    
+
     meta = fct_meta(filename)
-    
+
     out_file = getOutputName2(filename,out_folder,sensor,meta)
-    
+
     if os.path.exists(out_file):
         print("out_file %s exists" % out_file)
-        return 
-    
-    
+        return
+
+
     # land mask
     #fameta.set_mask_feature('land', '/home/datawork-cersat-public/cache/public/ftp/project/sarwing/xsardata/land-polygons-split-4326/land_polygons.shp')
 
@@ -557,31 +557,31 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
         try :
             ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'], date=datetime.datetime.strptime(meta.start_date, '%Y-%m-%d %H:%M:%S.%f'))[1]
         ## temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
-        except Exception as e : 
+        except Exception as e :
             ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'], date=datetime.datetime.strptime(meta.start_date, '%Y-%m-%d %H:%M:%S'))[1]
 
         if not os.path.isfile(ecmwf_file):
-            ## temporary 
+            ## temporary
             # if repro do not exists we look at not repro folder (only one will exist after)
             if ecmwf_name == "ecmwf_0100_1h":
                 ecmwf_infos['resource'] = ecmwf_infos['resource'].replace("netcdf_light_REPRO_tree","netcdf_light")
                 try :
                     ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'], date=datetime.datetime.strptime(meta.start_date, '%Y-%m-%d %H:%M:%S.%f'))[1]
-                except Exception as e : 
+                except Exception as e :
                     ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'], date=datetime.datetime.strptime(meta.start_date, '%Y-%m-%d %H:%M:%S'))[1]
 
                 if not os.path.isfile(ecmwf_file):
                     meta.rasters = meta.rasters.drop([ecmwf_name])
-                else : 
+                else :
                     map_model = { '%s_%s' % (ecmwf_name, uv) : 'model_%s' % uv for uv in ['U10', 'V10'] }
 
-            else : 
+            else :
                 meta.rasters = meta.rasters.drop([ecmwf_name])
         else:
             map_model = { '%s_%s' % (ecmwf_name, uv) : 'model_%s' % uv for uv in ['U10', 'V10'] }
-    
+
     try :
-        xsar_obj_1000m = fct_dataset(meta, resolution='1000m')    
+        xsar_obj_1000m = fct_dataset(meta, resolution='1000m')
         dataset_1000m = xsar_obj_1000m.datatree['measurement'].to_dataset()
         dataset_1000m = dataset_1000m.rename(map_model)
         #add attributes
@@ -591,7 +591,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     except Exception as e :
         print(e)
         return
-    
+
     black_list = ['digital_number', 'gamma0_raw', 'negz',
                   'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
                   'gamma0', 'time', 'nd_co', 'nd_cr',  'gamma0_lut','sigma0_lut',"noise_lut_range","lineSpacing","sampleSpacing","noise_lut","noise_lut_azi",
@@ -609,12 +609,12 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     'land_mask':'owiLandFlag'
     })
 
-    
+
     # TODO Would be nice to add a better land mask
-    # 3 - Variables of interest 
+    # 3 - Variables of interest
     # LAND
     #dataset_1000m.owiLandFlag.values = cv2.dilate(dataset_1000m['owiLandFlag'].values.astype('uint8'),np.ones((3,3),np.uint8),iterations = 3)
-    dataset_1000m.owiLandFlag.values = binary_dilation(dataset_1000m['owiLandFlag'].values.astype('uint8'), structure=np.ones((3,3),np.uint8), iterations=3)    
+    dataset_1000m.owiLandFlag.values = binary_dilation(dataset_1000m['owiLandFlag'].values.astype('uint8'), structure=np.ones((3,3),np.uint8), iterations=3)
     dataset_1000m.owiLandFlag.attrs['long_name'] = 'Mask of data'
     dataset_1000m.owiLandFlag.attrs['valid_range'] = np.array([0, 1])
     dataset_1000m.owiLandFlag.attrs['flag_values'] = np.array([0, 1])
@@ -627,17 +627,17 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     dataset_1000m.owiLandFlag.attrs['long_name'] = 'Mask of data'
     dataset_1000m.owiLandFlag.attrs['valid_range'] = np.array([0, 3])
     dataset_1000m.owiLandFlag.attrs['flag_values'] = np.array([0, 1, 2, 3])
-    dataset_1000m.owiLandFlag.attrs['flag_meanings'] = 'valid land ice no_valid'    
-      
-    ##ANCILLARY 
+    dataset_1000m.owiLandFlag.attrs['flag_meanings'] = 'valid land ice no_valid'
+
+    ##ANCILLARY
     dataset_1000m['ancillary_wind'] = (dataset_1000m.model_U10 + 1j * dataset_1000m.model_V10) * np.exp(1j * np.deg2rad(dataset_1000m.owiHeading))
     dataset_1000m['ancillary_wind'] = xr.where(dataset_1000m['owiMask'], np.nan, dataset_1000m['ancillary_wind'].compute()).transpose(*dataset_1000m['ancillary_wind'].dims)
     dataset_1000m.attrs['ancillary_source'] = dataset_1000m['model_U10'].attrs['history'].split('decoded: ')[1].strip()
     dataset_1000m = dataset_1000m.drop_vars(['model_U10','model_V10'])
 
-    
-    ##NRCS 
-    
+
+    ##NRCS
+
     if len(dataset_1000m.pol.values)==2:
         dual_pol = True
     else:
@@ -658,7 +658,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
                         'it wont crash but it will use VV+VH GMF for wind inversion -> wrong hypothesis\n '
                         '!! WIND SPEED IS NOT USABLE !!')
 
-    
+
 
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['owiMask'], np.nan, dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
@@ -685,7 +685,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     dataset_1000m=dataset_1000m.assign(owiNesz=(['line','sample'],dataset_1000m.nesz.isel(pol=0).values))
     dataset_1000m=dataset_1000m.assign(owiNesz_cross=(['line','sample'],dataset_1000m.nesz.isel(pol=1).values)) #no flattening
 
-    if config["apply_flattening"] : 
+    if config["apply_flattening"] :
         dataset_1000m=dataset_1000m.assign(owiNesz_cross_final=(['line','sample'],windspeed.nesz_flattening(dataset_1000m.owiNesz_cross, dataset_1000m.owiIncidenceAngle)))
         dataset_1000m['owiNesz_cross_final'].attrs["comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
     else :
@@ -714,7 +714,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     dataset_1000m["owiWindSpeed"] = np.abs(windspeed_dual)
     dataset_1000m["owiWindSpeed"].attrs["comment"] = dataset_1000m["owiWindSpeed"].attrs["comment"].replace("wind speed and direction","wind speed")
 
-    ## 4n - cr inversion 
+    ## 4n - cr inversion
     """
     windspeed_cr = windspeed.invert_from_model(
         dataset_1000m.incidence,
@@ -739,7 +739,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     dataset_1000m.owiWindSpeed_cross.attrs['comment'] = "wind speed inverted from model %s (%s)" % (config["GMF_VH_NAME"], "VH")
     dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_VH_NAME"]
     dataset_1000m.owiWindSpeed_cross.attrs['units'] = 'm/s'
-    # 5 - saving 
+    # 5 - saving
 
     dataset_1000m=dataset_1000m.assign(owiEcmwfWindSpeed=(['line','sample'],np.abs(dataset_1000m['ancillary_wind'].data)))
     dataset_1000m=dataset_1000m.assign(owiEcmwfWindDirection=(['line','sample'],np.angle(dataset_1000m['ancillary_wind'])))
@@ -760,7 +760,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     dataset_1000m['owiWindFilter'].attrs['flag_values'] = np.array([0, 1, 2, 3])
     dataset_1000m['owiWindFilter'].attrs['flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
     dataset_1000m['owiWindFilter'].attrs['comment'] = 'not done yet'
-    
+
     dataset_1000m = dataset_1000m.drop_dims('pol')
     dataset_1000m = dataset_1000m.rename_dims({"line":"owiAzSize","sample":"owiRaSize"})
     dataset_1000m = dataset_1000m.rename({"line":"owiAzSize","sample":"owiRaSize"})
@@ -785,12 +785,12 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     ds_1000.attrs["polarisationRatio"] = "/"
     ds_1000.attrs["l2ProcessingUtcTime"] = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
     ds_1000.attrs["processingCenter"] = "/" ;
-    try : 
+    try :
         ds_1000.attrs["firstMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['start_date'], "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%dT%H:%M:%SZ")
         ds_1000.attrs["lastMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['stop_date'], "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%dT%H:%M:%SZ")
-    except : 
+    except :
         ds_1000.attrs["firstMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['start_date'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%SZ")
-        ds_1000.attrs["lastMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['stop_date'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%SZ")    
+        ds_1000.attrs["lastMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['stop_date'], "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%dT%H:%M:%SZ")
     ds_1000.attrs["clmSource"] = "/" ;
     ds_1000.attrs["bathySource"] = "/" ;
     ds_1000.attrs["owiAlgorithmVersion"] = "/" ;
@@ -802,7 +802,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     ds_1000.attrs["owiWindSpeedSrc"] = "owiWindSpeed"
     ds_1000.attrs["owiWindDirectionSrc"] = "/"
 
-    
+
     # some type like date or json must be converted to string
     #ds_1000.attrs['start_date'] = str(ds_1000.attrs['start_date'])
     #ds_1000.attrs['stop_date'] = str(ds_1000.attrs['stop_date'])
@@ -821,15 +821,15 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     json_gcps = json.dumps(json.loads(json.dumps(ds_1000.owiAzSize.spatial_ref.gcps,cls=JSONEncoder)))
     ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
     ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
-    ds_1000 = ds_1000.drop_vars(["owiRaSize","owiAzSize","spatial_ref"])    
-    
+    ds_1000 = ds_1000.drop_vars(["owiRaSize","owiAzSize","spatial_ref"])
+
     # remove possible incorect values on swath border
     # for name in ['windspeed_co','windspeed_cr','windspeed_dual']:
       #  ds_1000[name].values[:,0:6] = np.nan
       #  ds_1000[name].values[:,-6::] = np.nan
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
-    
+
     table_fillValue = {
     "owiWindQuality": -1,
     "owiHeading": 9999.99,
@@ -846,7 +846,7 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
     encoding={}
     for var in list(set(ds_1000.coords.keys()) | set(ds_1000.keys())):
         encoding[var] = {}
-        try : 
+        try :
             #sarwing_ds[var].attrs["_FillValue"] = table_fillValue[var]
             encoding[var].update({'_FillValue': table_fillValue[var]})
         except:
@@ -856,11 +856,11 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
                 encoding[var].update({'_FillValue': -9999.0})
             else:
                 encoding[var].update({'_FillValue': None})
-            
+
     ds_1000.attrs["xsar_version"] = xsar.__version__
     ds_1000.attrs["xsarsea_version"] = xsarsea.__version__
 
-    ds_1000.to_netcdf(out_file, mode="w",encoding=encoding) 
+    ds_1000.to_netcdf(out_file, mode="w",encoding=encoding)
 
     df = ds_1000.to_dataframe()
 
@@ -870,6 +870,6 @@ def makeL2_tempo_Vinc(filename, out_folder, config_path):
 
     ds_1000.close()
 
-    print("OK for ",os.path.basename(filename))   
-    
+    print("OK for ",os.path.basename(filename))
+
     return out_file
