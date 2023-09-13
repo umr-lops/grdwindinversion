@@ -8,13 +8,13 @@ from xsarsea import windspeed
 import xarray as xr
 import numpy as np
 import sys
-sys.path.append("./")
+# sys.path.append("./")
 import datetime, os, yaml
 from pathlib import Path
 from scipy.ndimage import binary_dilation
 
 import re, string, os
-from load_config import getConf
+from grdwindinversion.load_config import getConf
 
 # optional debug messages
 import logging
