@@ -1,3 +1,4 @@
+import json
 import pdb
 import traceback
 
@@ -8,25 +9,31 @@ import grdwindinversion
 import xarray as xr
 import numpy as np
 import sys
-import datetime, os, yaml
+import datetime
+import os
+import yaml
 from pathlib import Path
 from scipy.ndimage import binary_dilation
 
-import re, string, os
+import re
+import string
+import os
 from grdwindinversion.load_config import getConf
 
 # optional debug messages
 import logging
 
 logging.basicConfig()
-logging.getLogger('xsarsea.windspeed').setLevel(logging.INFO)  # or .setLevel(logging.INFO)
+logging.getLogger('xsarsea.windspeed').setLevel(
+    logging.INFO)  # or .setLevel(logging.INFO)
 # encode gcps as json string
-import json
+
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
+
 
 def getSensorMetaDataset(filename):
     """
@@ -57,8 +64,10 @@ def getOutputName2(input_file, out_folder, sensor, meta):
     """
     basename = os.path.basename(input_file)
 
-    meta_start_date = meta.start_date.split(".")[0].replace("-", "").replace(":", "").replace(" ", "t").replace("Z", "")
-    meta_stop_date = meta.stop_date.split(".")[0].replace("-", "").replace(":", "").replace(" ", "t").replace("Z", "")
+    meta_start_date = meta.start_date.split(".")[0].replace(
+        "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
+    meta_stop_date = meta.stop_date.split(".")[0].replace(
+        "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
 
     if sensor == 'S1A' or sensor == 'S1B':
         regex = re.compile(
@@ -72,7 +81,8 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         return out_file
 
     elif sensor == 'RS2':
-        regex = re.compile("(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)")
+        regex = re.compile(
+            "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)")
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION}_${LAST}")
         match = regex.match(basename)
@@ -82,7 +92,8 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         out_file = os.path.join(out_folder, basename, new_format)
         return out_file
     elif sensor == 'RCM':
-        regex = re.compile("([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
+        regex = re.compile(
+            "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
         match = regex.match(basename)
@@ -91,10 +102,11 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         out_file = os.path.join(out_folder, basename, new_format)
         return out_file
     else:
-        raise ValueError("sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
+        raise ValueError(
+            "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
 
 
-def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
+def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True):
     """
 
     :param filename: str
@@ -105,7 +117,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
      out_file: str
     """
     # 1 - Find sensor, and associated config (GMFs to use, flattening or not)
-    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(filename)
+    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
+        filename)
     map_model = None
     if Path(config_path).exists():
         config = yaml.load(
@@ -117,7 +130,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         except Exception:
             raise KeyError("sensor %s not in this config" % sensor)
     else:
-        raise FileNotFoundError('config_path do not exists, got %s ' % config_path)
+        raise FileNotFoundError(
+            'config_path do not exists, got %s ' % config_path)
     # 2 - Add raster and load dataset at 1km resoltuion
 
     meta = fct_meta(filename)
@@ -136,24 +150,25 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     meta.set_raster('ecmwf_0100_1h', ec01)
     meta.set_raster('ecmwf_0125_1h', ec0125)
 
-    ## only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
+    # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
     for ecmwf_name in ['ecmwf_0125_1h', 'ecmwf_0100_1h']:
         ecmwf_infos = meta.rasters.loc[ecmwf_name]
         try:
             ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
                                                      date=datetime.datetime.strptime(meta.start_date,
                                                                                      '%Y-%m-%d %H:%M:%S.%f'))[1]
-        ## temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
+        # temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
         except Exception as e:
             ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
                                                      date=datetime.datetime.strptime(meta.start_date,
                                                                                      '%Y-%m-%d %H:%M:%S'))[1]
 
         if not os.path.isfile(ecmwf_file):
-            ##temporary
+            # temporary
             # if repro does not exist we look at not repro folder (only one will exist after)
             if ecmwf_name == "ecmwf_0100_1h":
-                ecmwf_infos['resource'] = ecmwf_infos['resource'].replace("netcdf_light_REPRO_tree", "netcdf_light")
+                ecmwf_infos['resource'] = ecmwf_infos['resource'].replace(
+                    "netcdf_light_REPRO_tree", "netcdf_light")
                 try:
                     ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
                                                              date=datetime.datetime.strptime(meta.start_date,
@@ -166,12 +181,14 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
                 if not os.path.isfile(ecmwf_file):
                     meta.rasters = meta.rasters.drop([ecmwf_name])
                 else:
-                    map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in ['U10', 'V10']}
+                    map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in [
+                        'U10', 'V10']}
 
             else:
                 meta.rasters = meta.rasters.drop([ecmwf_name])
         else:
-            map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in ['U10', 'V10']}
+            map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' %
+                         uv for uv in ['U10', 'V10']}
     if map_model is None:
         raise Exception(
             'the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
@@ -185,11 +202,11 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         dataset_1000m.attrs['L1_path'] = dataset_1000m.attrs.pop('name')
 
     except Exception as e:
-        logging.info('%s',traceback.format_exc())
+        logging.info('%s', traceback.format_exc())
         logging.error(e)
         sys.exit(-1)
 
-    #variables to not keep in the L2
+    # variables to not keep in the L2
     black_list = ['digital_number', 'gamma0_raw', 'negz',
                   'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
                   'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
@@ -198,7 +215,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     variables = list(set(dataset_1000m) - set(black_list))
     dataset_1000m = dataset_1000m[variables]
 
-    #rename to match sarwing naming
+    # rename to match sarwing naming
     dataset_1000m = dataset_1000m.rename({
         'longitude': 'owiLon',
         'latitude': 'owiLat',
@@ -220,7 +237,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     dataset_1000m.owiLandFlag.attrs['flag_meanings'] = 'valid no_valid'
 
     # MASK
-    ##Careful : in sarwing process sometimes there are 2 & 3. Not made here
+    # Careful : in sarwing process sometimes there are 2 & 3. Not made here
     dataset_1000m['owiMask'] = xr.DataArray(dataset_1000m.owiLandFlag)
     dataset_1000m.owiMask.attrs = {}
     dataset_1000m.owiLandFlag.attrs['long_name'] = 'Mask of data'
@@ -228,21 +245,23 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     dataset_1000m.owiLandFlag.attrs['flag_values'] = np.array([0, 1, 2, 3])
     dataset_1000m.owiLandFlag.attrs['flag_meanings'] = 'valid land ice no_valid'
 
-    ##ANCILLARY
+    # ANCILLARY
     dataset_1000m['ancillary_wind'] = (dataset_1000m.model_U10 + 1j * dataset_1000m.model_V10) * np.exp(
         1j * np.deg2rad(dataset_1000m.owiHeading))
     dataset_1000m['ancillary_wind'] = xr.where(dataset_1000m['owiMask'], np.nan,
                                                dataset_1000m['ancillary_wind'].compute()).transpose(
         *dataset_1000m['ancillary_wind'].dims)
-    dataset_1000m.attrs['ancillary_source'] = dataset_1000m['model_U10'].attrs['history'].split('decoded: ')[1].strip()
+    dataset_1000m.attrs['ancillary_source'] = dataset_1000m['model_U10'].attrs['history'].split('decoded: ')[
+        1].strip()
     dataset_1000m = dataset_1000m.drop_vars(['model_U10', 'model_V10'])
 
-    ##NRCS
+    # NRCS
 
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['owiMask'], np.nan,
                                              dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
-    dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
-    if len(dataset_1000m.pol.values)==2:
+    dataset_1000m['sigma0_ocean'] = xr.where(
+        dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
+    if len(dataset_1000m.pol.values) == 2:
         dual_pol = True
     else:
         dual_pol = False
@@ -264,11 +283,12 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     dataset_1000m.owiNrcs.attrs['units'] = 'm^2 / m^2'
     dataset_1000m.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
 
-
-    ##NESZ & DSIG
-    dataset_1000m = dataset_1000m.assign(owiNesz=(['line', 'sample'], dataset_1000m.nesz.isel(pol=0).values))
+    # NESZ & DSIG
+    dataset_1000m = dataset_1000m.assign(
+        owiNesz=(['line', 'sample'], dataset_1000m.nesz.isel(pol=0).values))
     # unused
-    dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m.owiNrcs - dataset_1000m.owiNesz
+    dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m.owiNrcs - \
+        dataset_1000m.owiNesz
     dataset_1000m.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
     dataset_1000m.owiNrcs_no_noise_correction.attrs[
         'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
@@ -276,14 +296,17 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         'comment'] = 'owiNrcs - owiNesz'
 
     if dual_pol:
-        dataset_1000m['owiNrcs_cross'] = dataset_1000m['sigma0_ocean'].sel(pol=crosspol)
+        dataset_1000m['owiNrcs_cross'] = dataset_1000m['sigma0_ocean'].sel(
+            pol=crosspol)
         dataset_1000m.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
         dataset_1000m.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         owiNrcs_cross = dataset_1000m['owiNrcs_cross']
-        dataset_1000m = dataset_1000m.assign(owiNesz_cross=(['line', 'sample'], dataset_1000m.nesz.isel(pol=1).values))  # no flattening
+        dataset_1000m = dataset_1000m.assign(owiNesz_cross=(
+            ['line', 'sample'], dataset_1000m.nesz.isel(pol=1).values))  # no flattening
 
         # unused
-        dataset_1000m['owiNrcs_cross_no_noise_correction'] =dataset_1000m.owiNrcs_cross - dataset_1000m.owiNesz_cross
+        dataset_1000m['owiNrcs_cross_no_noise_correction'] = dataset_1000m.owiNrcs_cross - \
+            dataset_1000m.owiNesz_cross
         dataset_1000m.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
         dataset_1000m.owiNrcs_cross_no_noise_correction.attrs[
             'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
@@ -291,26 +314,26 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             'var_definition'] = 'owiNrcs - owiNesz'
         if config["apply_flattening"]:
             dataset_1000m = dataset_1000m.assign(owiNesz_cross_final=(
-            ['line', 'sample'], windspeed.nesz_flattening(dataset_1000m.owiNesz_cross, dataset_1000m.owiIncidenceAngle)))
+                ['line', 'sample'], windspeed.nesz_flattening(dataset_1000m.owiNesz_cross, dataset_1000m.owiIncidenceAngle)))
             dataset_1000m['owiNesz_cross_final'].attrs[
                 "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
         else:
             dataset_1000m = dataset_1000m.assign(
                 owiNesz_cross_final=(['line', 'sample'], dataset_1000m.owiNesz_cross.values))
             dataset_1000m['owiNesz_cross_final'].attrs["comment"] = 'nesz has not been flattened'
-        ## dsig
-        dataset_1000m["owiDsig_cross"] = windspeed.get_dsig(config["GMF_"+crosspol_gmf+"_NAME"], dataset_1000m.owiIncidenceAngle,
+        # dsig
+        dataset_1000m["owiDsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], dataset_1000m.owiIncidenceAngle,
                                                             dataset_1000m.owiNrcs_cross, dataset_1000m.owiNesz_cross_final)
         dataset_1000m.owiDsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
         owiDsig_cross = dataset_1000m.owiDsig_cross
     else:
         owiNrcs_cross = None
-        owiDsig_cross = 0.1 # default value set in xsarsea
+        owiDsig_cross = 0.1  # default value set in xsarsea
 
     dataset_1000m = dataset_1000m.drop_vars(['sigma0_ocean', 'sigma0', 'nesz'])
 
     # 4 - Inversion
-    ## 4a - co & dual inversion
+    # 4a - co & dual inversion
     windspeeds = windspeed.invert_from_model(
         dataset_1000m.owiIncidenceAngle,
         dataset_1000m.owiNrcs,
@@ -332,7 +355,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
         dataset_1000m["owiWindSpeed"].attrs["comment"] = dataset_1000m["owiWindSpeed"].attrs["comment"].replace(
             "wind speed and direction", "wind speed")
     if dual_pol:
-        ##4n - cr inversion
+        # 4n - cr inversion
         """
         windspeed_cr = windspeed.invert_from_model(
             dataset_1000m.incidence,
@@ -343,7 +366,7 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
 
         dataset_1000m["wind_speed_cr"] = np.abs(windspeed_cr)
         """
-        ##cr inversion ##TODO
+        # cr inversion ##TODO
         windspeed_cr = windspeed.invert_from_model(
             dataset_1000m.owiIncidenceAngle.values,
             dataset_1000m.owiNrcs_cross.values,
@@ -352,10 +375,12 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
             model=config["GMF_"+crosspol_gmf+"_NAME"])
 
         windspeed_cr = np.abs(windspeed_cr)
-        dataset_1000m = dataset_1000m.assign(owiWindSpeed_cross=(['line', 'sample'], windspeed_cr))
+        dataset_1000m = dataset_1000m.assign(
+            owiWindSpeed_cross=(['line', 'sample'], windspeed_cr))
         dataset_1000m.owiWindSpeed_cross.attrs['comment'] = "wind speed inverted from model %s (%s)" % (
-        config["GMF_"+crosspol_gmf+"_NAME"], crosspol)
-        dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_"+crosspol_gmf+"_NAME"]
+            config["GMF_"+crosspol_gmf+"_NAME"], crosspol)
+        dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_" +
+                                                                 crosspol_gmf+"_NAME"]
         dataset_1000m.owiWindSpeed_cross.attrs['units'] = 'm/s'
     # 5 - saving
 
@@ -370,21 +395,25 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     dataset_1000m['owiWindQuality'].attrs[
         'long_name'] = "Quality flag taking into account the consistency_between_wind_inverted_and_NRCS_and_Doppler_measured"
     dataset_1000m['owiWindQuality'].attrs['valid_range'] = np.array([0, 3])
-    dataset_1000m['owiWindQuality'].attrs['flag_values'] = np.array([0, 1, 2, 3])
+    dataset_1000m['owiWindQuality'].attrs['flag_values'] = np.array([
+                                                                    0, 1, 2, 3])
     dataset_1000m['owiWindQuality'].attrs['flag_meanings'] = "good medium low poor"
     dataset_1000m['owiWindQuality'].attrs['comment'] = 'not done yet'
 
     dataset_1000m['owiWindFilter'] = xr.full_like(dataset_1000m.owiNrcs, 0)
     dataset_1000m['owiWindFilter'].attrs['long_name'] = "Quality flag taking into account the local heterogeneity"
     dataset_1000m['owiWindFilter'].attrs['valid_range'] = np.array([0, 3])
-    dataset_1000m['owiWindFilter'].attrs['flag_values'] = np.array([0, 1, 2, 3])
+    dataset_1000m['owiWindFilter'].attrs['flag_values'] = np.array([
+                                                                   0, 1, 2, 3])
     dataset_1000m['owiWindFilter'].attrs[
         'flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
     dataset_1000m['owiWindFilter'].attrs['comment'] = 'not done yet'
 
     dataset_1000m = dataset_1000m.drop_dims('pol')
-    dataset_1000m = dataset_1000m.rename_dims({"line": "owiAzSize", "sample": "owiRaSize"})
-    dataset_1000m = dataset_1000m.rename({"line": "owiAzSize", "sample": "owiRaSize"})
+    dataset_1000m = dataset_1000m.rename_dims(
+        {"line": "owiAzSize", "sample": "owiRaSize"})
+    dataset_1000m = dataset_1000m.rename(
+        {"line": "owiAzSize", "sample": "owiRaSize"})
     # dataset_1000m = dataset_1000m.swap_dims({'line':'owiAzSize','sample':'owiRaSize'})
     # xsar_obj_1000m.recompute_attrs()
     ds_1000 = dataset_1000m.compute()
@@ -403,9 +432,11 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     ds_1000.attrs["polarisation"] = dataset_1000m.pols
     ds_1000.attrs["acquisitionStation"] = "/"
     ds_1000.attrs["softwareVersion"] = "/"
-    ds_1000.attrs["pythonVersion"] = str(sys.version_info.major)+'.'+str(sys.version_info.minor)
+    ds_1000.attrs["pythonVersion"] = str(
+        sys.version_info.major)+'.'+str(sys.version_info.minor)
     ds_1000.attrs["polarisationRatio"] = "/"
-    ds_1000.attrs["l2ProcessingUtcTime"] = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    ds_1000.attrs["l2ProcessingUtcTime"] = datetime.datetime.now().strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
     ds_1000.attrs["processingCenter"] = "/"
     try:
         ds_1000.attrs["firstMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['start_date'],
@@ -425,10 +456,12 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     ds_1000.attrs["bathySource"] = "/"
     ds_1000.attrs['oswAlgorithmName'] = 'grdwindinversion'
     ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
-    ds_1000.attrs["gmf"] = config['GMF_'+copol_gmf+'_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
+    ds_1000.attrs["gmf"] = config['GMF_'+copol_gmf+'_NAME'] + \
+        ", " + config["GMF_"+crosspol_gmf+"_NAME"]
     ds_1000.attrs["iceSource"] = "/"
     ds_1000.attrs["owiNoiseCorrection"] = "False"
-    ds_1000.attrs["inversionTabGMF"] = config['GMF_'+copol_gmf+'_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
+    ds_1000.attrs["inversionTabGMF"] = config['GMF_'+copol_gmf +
+                                              '_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
     ds_1000.attrs["wnf_3km_average"] = "/"
     ds_1000.attrs["owiWindSpeedSrc"] = "owiWindSpeed"
     ds_1000.attrs["owiWindDirectionSrc"] = "/"
@@ -440,9 +473,8 @@ def makeL2(filename, out_folder, config_path,overwrite=False,generateCSV=True):
     # ds_1000.attrs['aux_cal_start'] = str(aux_cal_start)
     # ds_1000.attrs['aux_cal_stop'] = str(aux_cal_stop)
 
-
-
-    json_gcps = json.dumps(json.loads(json.dumps(ds_1000.owiAzSize.spatial_ref.gcps, cls=JSONEncoder)))
+    json_gcps = json.dumps(json.loads(json.dumps(
+        ds_1000.owiAzSize.spatial_ref.gcps, cls=JSONEncoder)))
     ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
     ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
     ds_1000 = ds_1000.drop_vars(["owiRaSize", "owiAzSize", "spatial_ref"])
