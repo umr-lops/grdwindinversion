@@ -12,5 +12,5 @@ RS2:
     apply_flattening: False
 RCM:
     GMF_VV_NAME: "cmod5n"
-    GMF_VH_NAME: "gmf_s1_v2"
+    GMF_VH_NAME: "gmf_rcm_noaa"
     apply_flattening: True
