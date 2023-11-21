@@ -4,8 +4,7 @@
 
 
 import unittest
-
-from grdwindinversion import grdwindinversion
+import grdwindinversion
 
 
 class TestGrdwindinversion(unittest.TestCase):
