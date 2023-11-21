@@ -50,7 +50,7 @@ def processor_starting_point():
         config_file = args.config_file
     out_folder = args.outputdir
 
-    out_file = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
+    out_file,outputds = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite)
     logging.info('out_file: %s', out_file)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
     logging.info('done in %1.3f min', (time.time() - t0) / 60.)

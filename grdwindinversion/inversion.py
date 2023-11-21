@@ -115,8 +115,10 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     :param overwrite: bool True -> existing files will be overwritten
     :return:
      out_file: str
+     ds_1000: xarray.Dataset final dataset with wind speed variables
     """
     # 1 - Find sensor, and associated config (GMFs to use, flattening or not)
+    ds_1000 = xr.Dataset()
     sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
         filename)
     map_model = None
@@ -140,7 +142,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
 
     if os.path.exists(out_file) and overwrite is False:
         logging.info("out_file %s exists" % out_file)
-        return out_file
+        return out_file,ds_1000
 
     # land mask
     logging.debug('conf: %s', getConf())
@@ -524,8 +526,8 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
         df.reset_index(drop=False, inplace=True)
         df.to_csv(out_file.replace(".nc", ".csv"))
 
-    ds_1000.close()
+    # ds_1000.close()
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file
+    return out_file,ds_1000
