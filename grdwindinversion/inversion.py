@@ -142,7 +142,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
 
     if os.path.exists(out_file) and overwrite is False:
         logging.info("out_file %s exists" % out_file)
-        return out_file,ds_1000
+        return out_file, ds_1000
 
     # land mask
     logging.debug('conf: %s', getConf())
@@ -267,6 +267,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
         dual_pol = True
     else:
         dual_pol = False
+
     if 'VV' in dataset_1000m.pol.values:
         copol = 'VV'
         crosspol = 'VH'
@@ -287,10 +288,11 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
 
     # NESZ & DSIG
     dataset_1000m = dataset_1000m.assign(
-        owiNesz=(['line', 'sample'], dataset_1000m.nesz.isel(pol=0).values))
+        owiNesz=(['line', 'sample'], dataset_1000m.nesz.sel(pol=copol).values))
     # unused
     dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m.owiNrcs - \
         dataset_1000m.owiNesz
+
     dataset_1000m.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
     dataset_1000m.owiNrcs_no_noise_correction.attrs[
         'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
@@ -304,7 +306,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
         dataset_1000m.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         owiNrcs_cross = dataset_1000m['owiNrcs_cross']
         dataset_1000m = dataset_1000m.assign(owiNesz_cross=(
-            ['line', 'sample'], dataset_1000m.nesz.isel(pol=1).values))  # no flattening
+            ['line', 'sample'], dataset_1000m.nesz.sel(pol=crosspol).values))  # no flattening
 
         # unused
         dataset_1000m['owiNrcs_cross_no_noise_correction'] = dataset_1000m.owiNrcs_cross - \
@@ -530,4 +532,4 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file,ds_1000
+    return out_file, ds_1000
