@@ -62,8 +62,8 @@ def getOutputName2(input_file, out_folder, sensor, meta):
     :param meta: obj `xsar.Sentinel1Meta` (or any other supported SAR mission)
     :return:
     """
-    basename = os.path.basename(input_file) 
-
+    basename = os.path.basename(input_file)
+    basename_match = basename
     meta_start_date = meta.start_date.split(".")[0].replace(
         "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
     meta_stop_date = meta.stop_date.split(".")[0].replace(
@@ -91,7 +91,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
         out_file = os.path.join(out_folder, basename, new_format)
         return out_file
-    
+
     elif sensor == 'RCM':
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
@@ -102,7 +102,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
         out_file = os.path.join(out_folder, basename, new_format)
         return out_file
-    
+
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
@@ -479,12 +479,12 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     # ds_1000.attrs['aux_cal_start'] = str(aux_cal_start)
     # ds_1000.attrs['aux_cal_stop'] = str(aux_cal_stop)
 
-    #json_gcps = json.dumps(json.loads(json.dumps(
+    # json_gcps = json.dumps(json.loads(json.dumps(
     #    ds_1000.owiAzSize.spatial_ref.gcps, cls=JSONEncoder)))
-    #ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
-    #ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
-    
-    #ds_1000 = ds_1000.drop_vars(["owiRaSize", "owiAzSize", "spatial_ref"])
+    # ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
+    # ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
+
+    # ds_1000 = ds_1000.drop_vars(["owiRaSize", "owiAzSize", "spatial_ref"])
     ds_1000 = ds_1000.drop_vars(["spatial_ref"])
 
     # remove possible incorect values on swath border
