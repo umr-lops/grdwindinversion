@@ -62,7 +62,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
     :param meta: obj `xsar.Sentinel1Meta` (or any other supported SAR mission)
     :return:
     """
-    basename = os.path.basename(input_file)
+    basename = os.path.basename(input_file) 
 
     meta_start_date = meta.start_date.split(".")[0].replace(
         "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
@@ -74,7 +74,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
             "(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE")
         template = string.Template(
             "${MISSIONID}_${BEAM}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POL}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE")
-        match = regex.match(basename)
+        match = regex.match(basename_match)
         MISSIONID, BEAM, PRODUCT, RESOLUTION, LEVEL, CLASS, POL, STARTDATE, STOPDATE, ORBIT, TAKEID, PRODID = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
         out_file = os.path.join(out_folder, basename, new_format)
@@ -85,22 +85,24 @@ def getOutputName2(input_file, out_folder, sensor, meta):
             "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)")
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION}_${LAST}")
-        match = regex.match(basename)
+        match = regex.match(basename_match)
 
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
         out_file = os.path.join(out_folder, basename, new_format)
         return out_file
+    
     elif sensor == 'RCM':
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
-        match = regex.match(basename)
+        match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
         out_file = os.path.join(out_folder, basename, new_format)
         return out_file
+    
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
@@ -475,11 +477,13 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     # ds_1000.attrs['aux_cal_start'] = str(aux_cal_start)
     # ds_1000.attrs['aux_cal_stop'] = str(aux_cal_stop)
 
-    json_gcps = json.dumps(json.loads(json.dumps(
-        ds_1000.owiAzSize.spatial_ref.gcps, cls=JSONEncoder)))
-    ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
-    ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
-    ds_1000 = ds_1000.drop_vars(["owiRaSize", "owiAzSize", "spatial_ref"])
+    #json_gcps = json.dumps(json.loads(json.dumps(
+    #    ds_1000.owiAzSize.spatial_ref.gcps, cls=JSONEncoder)))
+    #ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
+    #ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
+    
+    #ds_1000 = ds_1000.drop_vars(["owiRaSize", "owiAzSize", "spatial_ref"])
+    ds_1000 = ds_1000.drop_vars(["spatial_ref"])
 
     # remove possible incorect values on swath border
     # for name in ['windspeed_co','windspeed_cr','windspeed_dual']:
