@@ -318,14 +318,14 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
             ['line', 'sample'], dataset_1000m.nesz.sel(pol=crosspol).values))  # no flattening
 
         # unused
-        dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m['sigma0_ocean_raw'].sel(
+        dataset_1000m['owiNrcs_cross_no_noise_correction'] = dataset_1000m['sigma0_ocean_raw'].sel(
             pol=crosspol)
 
         dataset_1000m.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
         dataset_1000m.owiNrcs_cross_no_noise_correction.attrs[
             'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
-        dataset_1000m.owiNrcs_no_noise_correction.attrs[
-            'var_definition'] = 'owiNrcs - owiNesz'
+        dataset_1000m.owiNrcs_cross_no_noise_correction.attrs[
+            'var_definition'] = 'owiNrcs_cross - owiNesz_cross'
         if config["apply_flattening"]:
             dataset_1000m = dataset_1000m.assign(owiNesz_cross_final=(
                 ['line', 'sample'], windspeed.nesz_flattening(dataset_1000m.owiNesz_cross, dataset_1000m.owiIncidenceAngle)))
