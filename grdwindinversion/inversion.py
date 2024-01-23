@@ -268,7 +268,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
         dataset_1000m['sigma0_ocean'] <= 0, 1e-10, dataset_1000m['sigma0_ocean'])
 
     dataset_1000m['sigma0_ocean_raw'] = xr.where(dataset_1000m['owiMask'], np.nan,
-                                                 dataset_1000m['sigma0_raw'].compute()).transpose(*dataset_1000m['sigma0_ocean_raw'].dims)
+                                                 dataset_1000m['sigma0_raw'].compute()).transpose(*dataset_1000m['sigma0_raw'].dims)
     dataset_1000m['sigma0_ocean_raw'] = xr.where(
         dataset_1000m['sigma0_ocean_raw'] <= 0, 1e-10, dataset_1000m['sigma0_ocean_raw'])
 
