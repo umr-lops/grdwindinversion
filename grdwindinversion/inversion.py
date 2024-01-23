@@ -215,7 +215,8 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
                   'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
                   'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
                   "sampleSpacing", "noise_lut", "noise_lut_azi",
-                  'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "sigma0_raw", "beta0"]
+                  'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "beta0"]
+
     variables = list(set(dataset_1000m) - set(black_list))
     dataset_1000m = dataset_1000m[variables]
 
