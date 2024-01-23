@@ -264,7 +264,13 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['owiMask'], np.nan,
                                              dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
     dataset_1000m['sigma0_ocean'] = xr.where(
-        dataset_1000m['sigma0_ocean'] <= 0, 1e-15, dataset_1000m['sigma0_ocean'])
+        dataset_1000m['sigma0_ocean'] <= 0, 1e-10, dataset_1000m['sigma0_ocean'])
+
+    dataset_1000m['sigma0_ocean_raw'] = xr.where(dataset_1000m['owiMask'], np.nan,
+                                                 dataset_1000m['sigma0_raw'].compute()).transpose(*dataset_1000m['sigma0_ocean_raw'].dims)
+    dataset_1000m['sigma0_ocean_raw'] = xr.where(
+        dataset_1000m['sigma0_ocean_raw'] <= 0, 1e-10, dataset_1000m['sigma0_ocean_raw'])
+
     if len(dataset_1000m.pol.values) == 2:
         dual_pol = True
     else:
@@ -292,8 +298,8 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     dataset_1000m = dataset_1000m.assign(
         owiNesz=(['line', 'sample'], dataset_1000m.nesz.sel(pol=copol).values))
     # unused
-    dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m.owiNrcs - \
-        dataset_1000m.owiNesz
+    dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m['sigma0_ocean_raw'].sel(
+        pol=copol)
 
     dataset_1000m.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
     dataset_1000m.owiNrcs_no_noise_correction.attrs[
@@ -311,8 +317,9 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
             ['line', 'sample'], dataset_1000m.nesz.sel(pol=crosspol).values))  # no flattening
 
         # unused
-        dataset_1000m['owiNrcs_cross_no_noise_correction'] = dataset_1000m.owiNrcs_cross - \
-            dataset_1000m.owiNesz_cross
+        dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m['sigma0_ocean_raw'].sel(
+            pol=crosspol)
+
         dataset_1000m.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
         dataset_1000m.owiNrcs_cross_no_noise_correction.attrs[
             'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
