@@ -108,7 +108,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
 
 
-def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True):
+def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, recalibration=False, resolution = '1000m'):
     """
 
     :param filename: str
@@ -119,11 +119,13 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
      out_file: str
      ds_1000: xarray.Dataset final dataset with wind speed variables
     """
+    
     # 1 - Find sensor, and associated config (GMFs to use, flattening or not)
     ds_1000 = xr.Dataset()
     sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
         filename)
     map_model = None
+
     if Path(config_path).exists():
         config = yaml.load(
             Path(config_path).open(),
@@ -198,7 +200,12 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
             'the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
 
     try:
-        xsar_obj_1000m = fct_dataset(meta, resolution='1000m')
+        if ((recalibration) & ("SENTINEL" in sensor_longname)):
+            logging.info('recalibration is True : Kersten formula is applied')
+            xsar_obj_1000m = fct_dataset(meta, resolution=resolution, recalibration=recalibration)
+        else : 
+            logging.info('recalibration is True : Kersten formula is not applied')
+            xsar_obj_1000m = fct_dataset(meta, resolution=resolution,recalibration=recalibration)
         dataset_1000m = xsar_obj_1000m.datatree['measurement'].to_dataset()
         dataset_1000m = dataset_1000m.rename(map_model)
         # add attributes
@@ -535,6 +542,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     ds_1000.to_netcdf(out_file, mode="w", encoding=encoding)
     if generateCSV:
         df = ds_1000.to_dataframe()
+        df = df[df.owiMask == False]
 
         df = df.assign(**ds_1000.attrs)
         df.reset_index(drop=False, inplace=True)
