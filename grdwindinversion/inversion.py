@@ -223,7 +223,6 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                   'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
                   "sampleSpacing", "noise_lut", "noise_lut_azi",
                   'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "beta0"]
-
     variables = list(set(xr_dataset) - set(black_list))
     xr_dataset = xr_dataset[variables]
 
@@ -252,10 +251,10 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     # Careful : in sarwing process sometimes there are 2 & 3. Not made here
     xr_dataset['owiMask'] = xr.DataArray(xr_dataset.owiLandFlag)
     xr_dataset.owiMask.attrs = {}
-    xr_dataset.owiLandFlag.attrs['long_name'] = 'Mask of data'
-    xr_dataset.owiLandFlag.attrs['valid_range'] = np.array([0, 3])
-    xr_dataset.owiLandFlag.attrs['flag_values'] = np.array([0, 1, 2, 3])
-    xr_dataset.owiLandFlag.attrs['flag_meanings'] = 'valid land ice no_valid'
+    xr_dataset.owiMask.attrs['long_name'] = 'Mask of data'
+    xr_dataset.owiMask.attrs['valid_range'] = np.array([0, 3])
+    xr_dataset.owiMask.attrs['flag_values'] = np.array([0, 1, 2, 3])
+    xr_dataset.owiMask.attrs['flag_meanings'] = 'valid land ice no_valid'
 
     # ANCILLARY
     xr_dataset['ancillary_wind'] = (xr_dataset.model_U10 + 1j * xr_dataset.model_V10) * np.exp(
