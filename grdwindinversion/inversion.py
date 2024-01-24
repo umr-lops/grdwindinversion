@@ -271,12 +271,12 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     xr_dataset['sigma0_ocean'] = xr.where(xr_dataset['owiMask'], np.nan,
                                              xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
     xr_dataset['sigma0_ocean'] = xr.where(
-        xr_dataset['sigma0_ocean'] <= 0, 1e-10, xr_dataset['sigma0_ocean'])
+        xr_dataset['sigma0_ocean'] <= 0, np.nan, xr_dataset['sigma0_ocean'])
 
     xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['owiMask'], np.nan,
                                                  xr_dataset['sigma0_raw'].compute()).transpose(*xr_dataset['sigma0_raw'].dims)
     xr_dataset['sigma0_ocean_raw'] = xr.where(
-        xr_dataset['sigma0_ocean_raw'] <= 0, 1e-10, xr_dataset['sigma0_ocean_raw'])
+        xr_dataset['sigma0_ocean_raw'] <= 0, np.nan, xr_dataset['sigma0_ocean_raw'])
 
     if len(xr_dataset.pol.values) == 2:
         dual_pol = True
