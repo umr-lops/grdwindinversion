@@ -206,13 +206,15 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'windspeed_co': 'owiWindSpeed_co',
         'windspeed_cross': 'owiWindSpeed_cross',
         'windspeed_dual': 'owiWindSpeed',
-        'nesz_cross_final' : 'owiNesz_cross_final'
+        'nesz_cross_final' : 'owiNesz_cross_final',        
     })
+    
     
     xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
     xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
     xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
+    xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
 
     # NESZ & DSIG
     xr_dataset = xr_dataset.assign(
@@ -224,15 +226,31 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
     xr_dataset.owiNrcs_no_noise_correction.attrs = xr_dataset.sigma0_ocean_raw.attrs
     xr_dataset.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNrcs_no_noise_correction.attrs[
-        'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
+        'long_name'] = 'Normalized Radar Cross Section ; no noise correction applied'
     xr_dataset.owiNrcs_no_noise_correction.attrs[
-        'comment'] = 'owiNrcs[calibrated/not_calibrated] + owiNesz'
-
+            'comment'] = 'owiNrcs_no_noise_correction ; no recalibration'
+    
+    if "sigma0_raw__corrected" in xr_dataset:
+        xr_dataset['owiNrcs_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(pol=copol)
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs['units'] = 'm^2 / m^2'
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
+            'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
+            'comment'] = 'owiNrcs_no_noise_correction ; recalibrated with kersten method'
+    
+        
+        xr_dataset = xr_dataset.rename({
+            'swath_number' : 'owiSwathNumber',
+            'swath_number_flag' : 'owiSwathNumberFlag'})
+    
+    
     if dual_pol:
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
             pol=crosspol)
         xr_dataset.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
+        xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction - owiNesz_cross'
 
         xr_dataset = xr_dataset.assign(owiNesz_cross=(
             ['line', 'sample'], xr_dataset.nesz.sel(pol=crosspol).values))  # no flattening
@@ -244,9 +262,20 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         xr_dataset.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNrcs_cross_no_noise_correction.attrs[
             'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
-        xr_dataset.owiNrcs_cross_no_noise_correction.attrs[
-            'var_definition'] = 'owiNrcs_cross[calibrated/not_calibrated] + owiNesz_cross'
 
+        if "sigma0_raw__corrected" in xr_dataset:
+            xr_dataset['owiNrcs_cross_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(pol=crosspol)
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs['units'] = 'm^2 / m^2'
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs[
+                'long_name'] = 'Normalized Radar Cross Section ; no noise correction applied'
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs[
+            'comment'] = 'owiNrcs_cross_no_noise_correction ; recalibrated with kersten method'
+    
+            xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction_recalibrated - owiNesz_cross'
+
+    
+    
     xr_dataset["owiWindSpeed_co"].attrs["comment"] = xr_dataset["owiWindSpeed_co"].attrs["comment"].replace(
         "wind speed and direction", "wind speed")
 
@@ -450,7 +479,10 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         logging.info('%s', traceback.format_exc())
         logging.error(e)
         sys.exit(-1)
-
+    
+    if recalibration:
+        xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
+        
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
         dual_pol = True
