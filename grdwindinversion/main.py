@@ -15,11 +15,10 @@ def processor_starting_point():
     parser.add_argument('--config_file',
                         help='config file path [if not provided will take config file based on input file]',required=False)
                         
-    parser.add_argument('--resolution',required=False, default='1000m', help='set resolution ["full" | "1000m" | "xXxm"]', required=False)
-    parser.add_argument('--recalibration',required=False,action='store_true', default=False, help='apply kersten recalibration [default is False]', required=False)
-
-
-                        parser.add_argument('--outputdir', required=True)
+    parser.add_argument('--resolution',required=False, default='1000m', help='set resolution ["full" | "1000m" | "xXxm"]')
+    parser.add_argument('--recalibration',required=False,action='store_true', default=False, help='apply kersten recalibration [default is False]')
+     
+    parser.add_argument('--outputdir', required=True)
     parser.add_argument('--verbose', action='store_true', default=False)
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='overwrite existing .nc files [default is False]', required=False)
@@ -58,7 +57,8 @@ def processor_starting_point():
         
     out_folder = args.outputdir
     resolution = args.resolution
-    if resolution = "full":
+    
+    if resolution == "full":
         resolution = None
     
     out_file,outputds = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite,resolution = resolution, recalibration = args.recalibration)
