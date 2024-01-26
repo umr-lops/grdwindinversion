@@ -207,9 +207,10 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'windspeed_cross': 'owiWindSpeed_cross',
         'windspeed_dual': 'owiWindSpeed',
         'nesz_cross_final' : 'owiNesz_cross_final',        
+        'swath_number' : 'owiSwathNumber',
+        'swath_number_flag' : 'owiSwathNumberFlag'
     })
-    
-    
+        
     xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
     xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
     xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
@@ -237,13 +238,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
             'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
-            'comment'] = 'owiNrcs_no_noise_correction ; recalibrated with kersten method'
-    
-        
-        xr_dataset = xr_dataset.rename({
-            'swath_number' : 'owiSwathNumber',
-            'swath_number_flag' : 'owiSwathNumberFlag'})
-    
+            'comment'] = 'owiNrcs_no_noise_correction ; recalibrated with kersten method'  
     
     if dual_pol:
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
@@ -482,7 +477,9 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     
     if recalibration:
         xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
-        
+    else : 
+        xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag']])
+
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
         dual_pol = True
