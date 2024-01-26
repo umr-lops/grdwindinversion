@@ -207,15 +207,13 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'windspeed_cross': 'owiWindSpeed_cross',
         'windspeed_dual': 'owiWindSpeed',
         'nesz_cross_final' : 'owiNesz_cross_final',        
-        'swath_number' : 'owiSwathNumber',
-        'swath_number_flag' : 'owiSwathNumberFlag'
     })
         
     xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
     xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
     xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
-    xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
+    xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction - owiNesz'
 
     # NESZ & DSIG
     xr_dataset = xr_dataset.assign(
@@ -239,6 +237,15 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
             'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
             'comment'] = 'owiNrcs_no_noise_correction ; recalibrated with kersten method'  
+        
+        xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
+
+            
+        xr_dataset = xr_dataset.rename({
+         'swath_number' : 'owiSwathNumber',
+         'swath_number_flag' : 'owiSwathNumberFlag'
+        })
+
     
     if dual_pol:
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
@@ -313,6 +320,8 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
     
    
     xr_dataset = xr_dataset.drop_vars(['sigma0_ocean', 'sigma0', 'sigma0_ocean_raw','sigma0_raw', 'ancillary_wind','nesz','spatial_ref'])
+    if 'sigma0_raw__corrected' in xr_dataset:
+        xr_dataset = xr_dataset.drop_vars(["sigma0_raw__corrected"])
     xr_dataset = xr_dataset.drop_dims(['pol'])
     
     #attrs 
@@ -452,17 +461,24 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
             logging.info('recalibration is True : Kersten formula is applied')
             xsar_dataset = fct_dataset(
                 meta, resolution=resolution, recalibration=recalibration)
+            xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
+            xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
+  
         else:
             logging.info(
                 'recalibration is True : Kersten formula is not applied')
             if ("SENTINEL" in sensor_longname):
                 xsar_dataset = fct_dataset(
                 meta, resolution=resolution, recalibration=recalibration)
+                xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
+                xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag']])
+
             else: 
                 xsar_dataset = fct_dataset(
                 meta, resolution=resolution)
+                xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
+
                 
-        xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
         xr_dataset = xr_dataset.rename(map_model)
         # add attributes
         xr_dataset.attrs = xsar_dataset.dataset.attrs
@@ -475,10 +491,6 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         logging.error(e)
         sys.exit(-1)
     
-    if recalibration:
-        xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
-    else : 
-        xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag']])
 
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
