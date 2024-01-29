@@ -22,6 +22,8 @@ def processor_starting_point():
     parser.add_argument('--verbose', action='store_true', default=False)
     parser.add_argument('--overwrite', action='store_true', default=False,
                         help='overwrite existing .nc files [default is False]', required=False)
+    parser.add_argument('--aux_config_name', required = False, 
+                        help='config_name for recalibration ; only `v_IPF_36` defined in xsar yet', default = "v_IPF_36")
 
     args = parser.parse_args()
     fmt = '%(asctime)s %(levelname)s %(filename)s(%(lineno)d) %(message)s'
@@ -61,7 +63,8 @@ def processor_starting_point():
     if resolution == "full":
         resolution = None
     
-    out_file,outputds = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite,resolution = resolution, recalibration = args.recalibration)
+    out_file,outputds = makeL2(input_file, out_folder, config_file, overwrite=args.overwrite,resolution = resolution, 
+                               recalibration = args.recalibration, aux_config_name = args.aux_config_name)
     logging.info('out_file: %s', out_file)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
     logging.info('done in %1.3f min', (time.time() - t0) / 60.)

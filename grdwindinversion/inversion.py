@@ -411,7 +411,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
     return xr_dataset, encoding
 
 
-def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, recalibration=False, resolution='1000m'):
+def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, resolution='1000m',recalibration=False, aux_config_name='v_IPF_36'):
     """
 
     :param filename: str
@@ -460,7 +460,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         if ((recalibration) & ("SENTINEL" in sensor_longname)):
             logging.info('recalibration is True : Kersten formula is applied')
             xsar_dataset = fct_dataset(
-                meta, resolution=resolution, recalibration=recalibration)
+                meta, resolution=resolution, recalibration=recalibration, aux_config_name = aux_config_name)
             xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
             xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
   
