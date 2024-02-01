@@ -3,3 +3,4 @@ RS2:
     GMF_VH_NAME: "gmf_rs2_v2"
     dsig_VH_NAME: "gmf_rs2_v2"
     apply_flattening: False
+    recalibration: False

@@ -411,7 +411,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
     return xr_dataset, encoding
 
 
-def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, resolution='1000m',recalibration=False, aux_config_name='v_IPF_36'):
+def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, resolution='1000m'):
     """
 
     :param filename: str
@@ -442,10 +442,15 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     else:
         raise FileNotFoundError(
             'config_path do not exists, got %s ' % config_path)
-
+    
+    recalibration = config["recalibration"]
+    if recalibration:
+        aux_config_name=config["aux_config_name"]
+    
     meta = fct_meta(filename)
     out_file = getOutputName2(filename, out_folder, sensor, meta)
 
+    
     if os.path.exists(out_file) and overwrite is False:
         logging.info("out_file %s exists" % out_file)
         return out_file, xr.Dataset()
@@ -468,14 +473,12 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
             logging.info(
                 'recalibration is True : Kersten formula is not applied')
             if ("SENTINEL" in sensor_longname):
-                xsar_dataset = fct_dataset(
-                meta, resolution=resolution, recalibration=recalibration)
+                xsar_dataset = fct_dataset(meta, resolution=resolution,recalibration=recalibration)
                 xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
                 xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag']])
 
             else: 
-                xsar_dataset = fct_dataset(
-                meta, resolution=resolution)
+                xsar_dataset = fct_dataset(meta, resolution=resolution)
                 xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
 
                 
@@ -558,6 +561,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                                           xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
     xr_dataset['sigma0_ocean'] = xr.where(
         xr_dataset['sigma0_ocean'] <= 0, np.nan, xr_dataset['sigma0_ocean'])
+    
     xr_dataset['sigma0_ocean'].attrs = xr_dataset['sigma0'].attrs
 
     xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['mask'], np.nan,
