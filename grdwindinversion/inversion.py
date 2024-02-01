@@ -19,7 +19,6 @@ import re
 import string
 import os
 from grdwindinversion.load_config import getConf
-
 # optional debug messages
 import logging
 
@@ -108,45 +107,8 @@ def getOutputName2(input_file, out_folder, sensor, meta):
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
 
 
-def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True):
-    """
+def getAncillary(meta):
 
-    :param filename: str
-    :param out_folder: str
-    :param config_path: str
-    :param overwrite: bool True -> existing files will be overwritten
-    :return:
-     out_file: str
-     ds_1000: xarray.Dataset final dataset with wind speed variables
-    """
-    # 1 - Find sensor, and associated config (GMFs to use, flattening or not)
-    ds_1000 = xr.Dataset()
-    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
-        filename)
-    map_model = None
-    if Path(config_path).exists():
-        config = yaml.load(
-            Path(config_path).open(),
-            Loader=yaml.FullLoader
-        )
-        try:
-            config = config[sensor]
-        except Exception:
-            raise KeyError("sensor %s not in this config" % sensor)
-    else:
-        raise FileNotFoundError(
-            'config_path do not exists, got %s ' % config_path)
-    # 2 - Add raster and load dataset at 1km resoltuion
-
-    meta = fct_meta(filename)
-
-    out_file = getOutputName2(filename, out_folder, sensor, meta)
-
-    if os.path.exists(out_file) and overwrite is False:
-        logging.info("out_file %s exists" % out_file)
-        return out_file, ds_1000
-
-    # land mask
     logging.debug('conf: %s', getConf())
     ec01 = getConf()['ecmwf_0100_1h']
     ec0125 = getConf()['ecmwf_0125_1h']
@@ -154,6 +116,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     meta.set_raster('ecmwf_0100_1h', ec01)
     meta.set_raster('ecmwf_0125_1h', ec0125)
 
+    map_model = None
     # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
     for ecmwf_name in ['ecmwf_0125_1h', 'ecmwf_0100_1h']:
         ecmwf_infos = meta.rasters.loc[ecmwf_name]
@@ -193,91 +156,352 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
         else:
             map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' %
                          uv for uv in ['U10', 'V10']}
-    if map_model is None:
-        raise Exception(
-            'the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
 
-    try:
-        xsar_obj_1000m = fct_dataset(meta, resolution='1000m')
-        dataset_1000m = xsar_obj_1000m.datatree['measurement'].to_dataset()
-        dataset_1000m = dataset_1000m.rename(map_model)
-        # add attributes
-        dataset_1000m.attrs = xsar_obj_1000m.dataset.attrs
-        dataset_1000m.attrs['L1_path'] = dataset_1000m.attrs.pop('name')
+    return map_model
 
-    except Exception as e:
-        logging.info('%s', traceback.format_exc())
-        logging.error(e)
-        sys.exit(-1)
 
-    # variables to not keep in the L2
-    black_list = ['digital_number', 'gamma0_raw', 'negz',
-                  'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
-                  'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
-                  "sampleSpacing", "noise_lut", "noise_lut_azi",
-                  'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "beta0"]
+def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_vv, model_vh):
+    logging.debug("inversion")
+    # 4 - Inversion
+    windspeeds = windspeed.invert_from_model(
+        inc,
+        sigma0,
+        sigma0_dual,
+        # ancillary_wind=-np.conj(xsar_dataset.dataset['ancillary_wind']),
+        ancillary_wind=-ancillary_wind,
+        dsig_cr=dsig_cr,
+        model=(model_vv, model_vh))
+    if dual_pol:
+        windspeed_co, windspeed_dual = windspeeds
+    else:
+        windspeed_co = windspeeds
 
-    variables = list(set(dataset_1000m) - set(black_list))
-    dataset_1000m = dataset_1000m[variables]
+    if dual_pol:
+        windspeed_cr = windspeed.invert_from_model(
+            inc.values,
+            sigma0_dual.values,
+            # ancillary_wind=-np.conj(xsar_dataset.dataset['ancillary_wind']),
+            dsig_cr=dsig_cr.values,
+            model=model_vh)
 
+        return np.abs(windspeed_co), np.abs(windspeed_dual), np.abs(windspeed_cr)
+
+    return windspeed_co, None, None
+
+
+
+
+def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, config):
     # rename to match sarwing naming
-    dataset_1000m = dataset_1000m.rename({
+
+    xr_dataset = xr_dataset.rename({
         'longitude': 'owiLon',
         'latitude': 'owiLat',
         'incidence': 'owiIncidenceAngle',
         'elevation': 'owiElevationAngle',
         'ground_heading': 'owiHeading',
-        'land_mask': 'owiLandFlag'
+        'land_mask': 'owiLandFlag',
+        'mask' : 'owiMask',
+        'dsig_cross': 'owiDsig_cross',
+        'windspeed_co': 'owiWindSpeed_co',
+        'windspeed_cross': 'owiWindSpeed_cross',
+        'windspeed_dual': 'owiWindSpeed',
+        'nesz_cross_final' : 'owiNesz_cross_final',        
     })
+        
+    xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
+    xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
+    xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
+    xr_dataset.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
+    xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction - owiNesz'
 
-    # TODO Would be nice to add a better land mask
-    # 3 - Variables of interest
-    # LAND
-    # dataset_1000m.owiLandFlag.values = cv2.dilate(dataset_1000m['owiLandFlag'].values.astype('uint8'),np.ones((3,3),np.uint8),iterations = 3)
-    dataset_1000m.owiLandFlag.values = binary_dilation(dataset_1000m['owiLandFlag'].values.astype('uint8'),
-                                                       structure=np.ones((3, 3), np.uint8), iterations=3)
-    dataset_1000m.owiLandFlag.attrs['long_name'] = 'Mask of data'
-    dataset_1000m.owiLandFlag.attrs['valid_range'] = np.array([0, 1])
-    dataset_1000m.owiLandFlag.attrs['flag_values'] = np.array([0, 1])
-    dataset_1000m.owiLandFlag.attrs['flag_meanings'] = 'valid no_valid'
+    # NESZ & DSIG
+    xr_dataset = xr_dataset.assign(
+        owiNesz=(['line', 'sample'], xr_dataset.nesz.sel(pol=copol).values))
+    xr_dataset.owiNesz.attrs = xr_dataset.nesz.attrs
 
-    # MASK
-    # Careful : in sarwing process sometimes there are 2 & 3. Not made here
-    dataset_1000m['owiMask'] = xr.DataArray(dataset_1000m.owiLandFlag)
-    dataset_1000m.owiMask.attrs = {}
-    dataset_1000m.owiLandFlag.attrs['long_name'] = 'Mask of data'
-    dataset_1000m.owiLandFlag.attrs['valid_range'] = np.array([0, 3])
-    dataset_1000m.owiLandFlag.attrs['flag_values'] = np.array([0, 1, 2, 3])
-    dataset_1000m.owiLandFlag.attrs['flag_meanings'] = 'valid land ice no_valid'
+    xr_dataset['owiNrcs_no_noise_correction'] = xr_dataset['sigma0_ocean_raw'].sel(
+        pol=copol)
+    xr_dataset.owiNrcs_no_noise_correction.attrs = xr_dataset.sigma0_ocean_raw.attrs
+    xr_dataset.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
+    xr_dataset.owiNrcs_no_noise_correction.attrs[
+        'long_name'] = 'Normalized Radar Cross Section ; no noise correction applied'
+    xr_dataset.owiNrcs_no_noise_correction.attrs[
+            'comment'] = 'owiNrcs_no_noise_correction ; no recalibration'
+    
+    if "sigma0_raw__corrected" in xr_dataset:
+        xr_dataset['owiNrcs_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(pol=copol)
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs['units'] = 'm^2 / m^2'
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
+            'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
+        xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
+            'comment'] = 'owiNrcs_no_noise_correction ; recalibrated with kersten method'  
+        
+        xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
 
-    # ANCILLARY
-    dataset_1000m['ancillary_wind'] = (dataset_1000m.model_U10 + 1j * dataset_1000m.model_V10) * np.exp(
-        1j * np.deg2rad(dataset_1000m.owiHeading))
-    dataset_1000m['ancillary_wind'] = xr.where(dataset_1000m['owiMask'], np.nan,
-                                               dataset_1000m['ancillary_wind'].compute()).transpose(
-        *dataset_1000m['ancillary_wind'].dims)
-    dataset_1000m.attrs['ancillary_source'] = dataset_1000m['model_U10'].attrs['history'].split('decoded: ')[
-        1].strip()
-    dataset_1000m = dataset_1000m.drop_vars(['model_U10', 'model_V10'])
+            
+        xr_dataset = xr_dataset.rename({
+         'swath_number' : 'owiSwathNumber',
+         'swath_number_flag' : 'owiSwathNumberFlag'
+        })
 
-    # NRCS
+    
+    if dual_pol:
+        xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
+            pol=crosspol)
+        xr_dataset.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
+        xr_dataset.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
+        xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction - owiNesz_cross'
 
-    dataset_1000m['sigma0_ocean'] = xr.where(dataset_1000m['owiMask'], np.nan,
-                                             dataset_1000m['sigma0'].compute()).transpose(*dataset_1000m['sigma0'].dims)
-    dataset_1000m['sigma0_ocean'] = xr.where(
-        dataset_1000m['sigma0_ocean'] <= 0, 1e-10, dataset_1000m['sigma0_ocean'])
+        xr_dataset = xr_dataset.assign(owiNesz_cross=(
+            ['line', 'sample'], xr_dataset.nesz.sel(pol=crosspol).values))  # no flattening
+        xr_dataset.owiNesz_cross.attrs = xr_dataset.nesz.attrs
+        # unused
+        xr_dataset['owiNrcs_cross_no_noise_correction'] = xr_dataset['sigma0_ocean_raw'].sel(
+            pol=crosspol)
 
-    dataset_1000m['sigma0_ocean_raw'] = xr.where(dataset_1000m['owiMask'], np.nan,
-                                                 dataset_1000m['sigma0_raw'].compute()).transpose(*dataset_1000m['sigma0_raw'].dims)
-    dataset_1000m['sigma0_ocean_raw'] = xr.where(
-        dataset_1000m['sigma0_ocean_raw'] <= 0, 1e-10, dataset_1000m['sigma0_ocean_raw'])
+        xr_dataset.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
+        xr_dataset.owiNrcs_cross_no_noise_correction.attrs[
+            'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
 
-    if len(dataset_1000m.pol.values) == 2:
+        if "sigma0_raw__corrected" in xr_dataset:
+            xr_dataset['owiNrcs_cross_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(pol=crosspol)
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs['units'] = 'm^2 / m^2'
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs[
+                'long_name'] = 'Normalized Radar Cross Section ; no noise correction applied'
+            xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs[
+            'comment'] = 'owiNrcs_cross_no_noise_correction ; recalibrated with kersten method'
+    
+            xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction_recalibrated - owiNesz_cross'
+
+    
+    
+    xr_dataset["owiWindSpeed_co"].attrs["comment"] = xr_dataset["owiWindSpeed_co"].attrs["comment"].replace(
+        "wind speed and direction", "wind speed")
+
+    if dual_pol:
+        xr_dataset["owiWindSpeed"].attrs["comment"] = xr_dataset["owiWindSpeed"].attrs["comment"].replace(
+            "wind speed and direction", "wind speed")
+
+        xr_dataset["owiWindSpeed_cross"].attrs['comment'] = "wind speed inverted from model %s (%s)" % (
+            crosspol_gmf, crosspol)
+
+        xr_dataset.owiWindSpeed_cross.attrs['model'] = crosspol_gmf
+        xr_dataset.owiWindSpeed_cross.attrs['units'] = 'm/s'
+
+    xr_dataset = xr_dataset.assign(
+        owiEcmwfWindSpeed=(['line', 'sample'], np.abs(xr_dataset['ancillary_wind'].data)))
+    xr_dataset = xr_dataset.assign(
+        owiEcmwfWindDirection=(['line', 'sample'], np.angle(xr_dataset['ancillary_wind'])))
+    xr_dataset['owiEcmwfWindDirection'].attrs['comment'] = 'angle in radians, anticlockwise, 0=sample'
+
+    xr_dataset['owiWindQuality'] = xr.full_like(xr_dataset.owiNrcs, 0)
+    xr_dataset['owiWindQuality'].attrs[
+        'long_name'] = "Quality flag taking into account the consistency_between_wind_inverted_and_NRCS_and_Doppler_measured"
+    xr_dataset['owiWindQuality'].attrs['valid_range'] = np.array([0, 3])
+    xr_dataset['owiWindQuality'].attrs['flag_values'] = np.array([
+        0, 1, 2, 3])
+    xr_dataset['owiWindQuality'].attrs['flag_meanings'] = "good medium low poor"
+    xr_dataset['owiWindQuality'].attrs['comment'] = 'not done yet'
+
+    xr_dataset['owiWindFilter'] = xr.full_like(xr_dataset.owiNrcs, 0)
+    xr_dataset['owiWindFilter'].attrs['long_name'] = "Quality flag taking into account the local heterogeneity"
+    xr_dataset['owiWindFilter'].attrs['valid_range'] = np.array([0, 3])
+    xr_dataset['owiWindFilter'].attrs['flag_values'] = np.array([
+        0, 1, 2, 3])
+    xr_dataset['owiWindFilter'].attrs[
+        'flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
+    xr_dataset['owiWindFilter'].attrs['comment'] = 'not done yet'
+
+    xr_dataset = xr_dataset.rename(
+        {"line": "owiAzSize", "sample": "owiRaSize"})
+    
+   
+    xr_dataset = xr_dataset.drop_vars(['sigma0_ocean', 'sigma0', 'sigma0_ocean_raw','sigma0_raw', 'ancillary_wind','nesz','spatial_ref'])
+    if 'sigma0_raw__corrected' in xr_dataset:
+        xr_dataset = xr_dataset.drop_vars(["sigma0_raw__corrected"])
+    xr_dataset = xr_dataset.drop_dims(['pol'])
+    
+    #attrs 
+
+    xr_dataset.compute()
+
+    for var in ['footprint', 'multidataset', 'rawDataStartTime', 'specialHandlingRequired']:
+        if var in xr_dataset.attrs:
+            xr_dataset.attrs[var] = str(xr_dataset.attrs[var])
+        if "approx_transform" in xr_dataset.attrs:
+            del xr_dataset.attrs["approx_transform"]
+
+        xr_dataset.attrs["TITLE"] = "Sentinel-1 OWI Component"
+        xr_dataset.attrs["missionPhase"] = "Test"
+        xr_dataset.attrs["polarisation"] = xr_dataset.pols
+        xr_dataset.attrs["acquisitionStation"] = "/"
+        xr_dataset.attrs["softwareVersion"] = "/"
+        xr_dataset.attrs["pythonVersion"] = str(
+            sys.version_info.major)+'.'+str(sys.version_info.minor)
+        xr_dataset.attrs["polarisationRatio"] = "/"
+        xr_dataset.attrs["l2ProcessingUtcTime"] = datetime.datetime.now().strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        xr_dataset.attrs["processingCenter"] = "/"
+        try:
+            xr_dataset.attrs["firstMeasurementTime"] = datetime.datetime.strptime(xr_dataset.attrs['start_date'],
+                                                                                "%Y-%m-%d %H:%M:%S.%f").strftime(
+                "%Y-%m-%dT%H:%M:%SZ")
+            xr_dataset.attrs["lastMeasurementTime"] = datetime.datetime.strptime(xr_dataset.attrs['stop_date'],
+                                                                               "%Y-%m-%d %H:%M:%S.%f").strftime(
+                "%Y-%m-%dT%H:%M:%SZ")
+        except:
+            xr_dataset.attrs["firstMeasurementTime"] = datetime.datetime.strptime(xr_dataset.attrs['start_date'],
+                                                                                "%Y-%m-%d %H:%M:%S").strftime(
+                "%Y-%m-%dT%H:%M:%SZ")
+            xr_dataset.attrs["lastMeasurementTime"] = datetime.datetime.strptime(xr_dataset.attrs['stop_date'],
+                                                                               "%Y-%m-%d %H:%M:%S").strftime(
+                "%Y-%m-%dT%H:%M:%SZ")
+        xr_dataset.attrs["clmSource"] = "/"
+        xr_dataset.attrs["bathySource"] = "/"
+        xr_dataset.attrs['oswAlgorithmName'] = 'grdwindinversion'
+        xr_dataset.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
+        xr_dataset.attrs["gmf"] = config['GMF_'+copol_gmf+'_NAME'] + \
+            ", " + config["GMF_"+crosspol_gmf+"_NAME"]
+        xr_dataset.attrs["iceSource"] = "/"
+        xr_dataset.attrs["owiNoiseCorrection"] = "False"
+        xr_dataset.attrs["inversionTabGMF"] = config['GMF_'+copol_gmf +
+                                                   '_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
+        xr_dataset.attrs["wnf_3km_average"] = "/"
+        xr_dataset.attrs["owiWindSpeedSrc"] = "owiWindSpeed"
+        xr_dataset.attrs["owiWindDirectionSrc"] = "/"
+
+    for var in xr_dataset.variables:
+        if "history" in xr_dataset[var].attrs:
+            del xr_dataset[var].attrs["history"]
+
+            
+    table_fillValue = {
+        "owiWindQuality": -1,
+        "owiHeading": 9999.99,
+        "owiWindDirection_IPF": -9999.0,
+        "owiWindSpeed_IPF": -9999.0,
+        "owiWindDirection": -9999.0,
+        "owiPBright": 999.99,
+        "owiWindFilter": -1,
+        "owiWindSpeed": -9999.0,
+        "owiWindSpeed_co": -9999.0,
+        "owiWindSpeed_cross": -9999.0,
+    }
+    
+    encoding = {}
+    for var in list(set(xr_dataset.coords.keys()) | set(xr_dataset.keys())):
+        encoding[var] = {}
+        try:
+            # sarwing_ds[var].attrs["_FillValue"] = table_fillValue[var]
+            encoding[var].update({'_FillValue': table_fillValue[var]})
+        except:
+            # Nouvelles variables..
+            if (var in ["owiWindSpeed_co", "owiWindSpeed_cross", "owiWindSpeed"]):
+                # sarwing_ds[var].attrs["_FillValue"] = -9999.0
+                encoding[var].update({'_FillValue': -9999.0})
+            else:
+                encoding[var].update({'_FillValue': None})
+
+    xr_dataset.attrs["xsar_version"] = xsar.__version__
+    xr_dataset.attrs["xsarsea_version"] = xsarsea.__version__
+    
+    return xr_dataset, encoding
+
+
+def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, resolution='1000m'):
+    """
+
+    :param filename: str
+    :param out_folder: str
+    :param config_path: str
+    :param overwrite: bool True -> existing files will be overwritten
+    :return:
+     out_file: str
+     xr_dataset: xarray.Dataset final dataset with wind speed variables
+    """
+
+    # final xr.Dataset
+
+    #  Step 1 - load L1 product
+
+    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
+        filename)
+
+    if Path(config_path).exists():
+        config = yaml.load(
+            Path(config_path).open(),
+            Loader=yaml.FullLoader
+        )
+        try:
+            config = config[sensor]
+        except Exception:
+            raise KeyError("sensor %s not in this config" % sensor)
+    else:
+        raise FileNotFoundError(
+            'config_path do not exists, got %s ' % config_path)
+    
+    recalibration = config["recalibration"]
+    if recalibration:
+        aux_config_name=config["aux_config_name"]
+    
+    meta = fct_meta(filename)
+    out_file = getOutputName2(filename, out_folder, sensor, meta)
+
+    
+    if os.path.exists(out_file) and overwrite is False:
+        logging.info("out_file %s exists" % out_file)
+        return out_file, xr.Dataset()
+
+    # get ancillary wind from ECMWF
+    map_model = getAncillary(meta)
+    if map_model is None:
+        raise Exception(
+            'the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
+
+    try:
+        if ((recalibration) & ("SENTINEL" in sensor_longname)):
+            logging.info('recalibration is True : Kersten formula is applied')
+            xsar_dataset = fct_dataset(
+                meta, resolution=resolution, recalibration=recalibration, aux_config_name = aux_config_name)
+            xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
+            xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
+  
+        else:
+            logging.info(
+                'recalibration is True : Kersten formula is not applied')
+            if ("SENTINEL" in sensor_longname):
+                xsar_dataset = fct_dataset(meta, resolution=resolution,recalibration=recalibration)
+                xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
+                xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag']])
+
+            else: 
+                xsar_dataset = fct_dataset(meta, resolution=resolution)
+                xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
+
+                
+        xr_dataset = xr_dataset.rename(map_model)
+        # add attributes
+        xr_dataset.attrs = xsar_dataset.dataset.attrs
+        xr_dataset.attrs['L1_path'] = xr_dataset.attrs.pop('name')
+        xr_dataset.attrs["sourceProduct"] = sensor
+        xr_dataset.attrs["missionName"] = sensor_longname
+        
+    except Exception as e:
+        logging.info('%s', traceback.format_exc())
+        logging.error(e)
+        sys.exit(-1)
+    
+
+    # defining dual_pol, and gmfs by channel
+    if len(xr_dataset.pol.values) == 2:
         dual_pol = True
     else:
         dual_pol = False
 
-    if 'VV' in dataset_1000m.pol.values:
+    if 'VV' in xr_dataset.pol.values:
         copol = 'VV'
         crosspol = 'VH'
         copol_gmf = 'VV'
@@ -291,257 +515,114 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
         copol_gmf = 'VV'
         crosspol_gmf = 'VH'
 
-    dataset_1000m['owiNrcs'] = dataset_1000m['sigma0_ocean'].sel(pol=copol)
-    dataset_1000m.owiNrcs.attrs['units'] = 'm^2 / m^2'
-    dataset_1000m.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
+    #  Step 2 - clean and prepare dataset
 
-    # NESZ & DSIG
-    dataset_1000m = dataset_1000m.assign(
-        owiNesz=(['line', 'sample'], dataset_1000m.nesz.sel(pol=copol).values))
-    # unused
-    dataset_1000m['owiNrcs_no_noise_correction'] = dataset_1000m['sigma0_ocean_raw'].sel(
-        pol=copol)
+    # variables to not keep in the L2
+    black_list = ['digital_number', 'gamma0_raw', 'negz',
+                  'azimuth_time', 'slant_range_time', 'velocity', 'range_ground_spacing',
+                  'gamma0', 'time', 'nd_co', 'nd_cr', 'gamma0_lut', 'sigma0_lut', "noise_lut_range", "lineSpacing",
+                  "sampleSpacing", "noise_lut", "noise_lut_azi",
+                  'nebz', 'beta0_raw', 'lines_flipped', 'samples_flipped', "altitude", "beta0"]
+    variables = list(set(xr_dataset) - set(black_list))
+    xr_dataset = xr_dataset[variables]
 
-    dataset_1000m.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
-    dataset_1000m.owiNrcs_no_noise_correction.attrs[
-        'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
-    dataset_1000m.owiNrcs_no_noise_correction.attrs[
-        'comment'] = 'owiNrcs - owiNesz'
+    # TODO Better land mask
+    # xr_dataset.land_mask.values = cv2.dilate(xr_dataset['land_mask'].values.astype('uint8'),np.ones((3,3),np.uint8),iterations = 3)
+    xr_dataset.land_mask.values = binary_dilation(xr_dataset['land_mask'].values.astype('uint8'),
+                                                  structure=np.ones((3, 3), np.uint8), iterations=3)
+    xr_dataset.land_mask.attrs['long_name'] = 'Mask of data'
+    xr_dataset.land_mask.attrs['valid_range'] = np.array([0, 1])
+    xr_dataset.land_mask.attrs['flag_values'] = np.array([0, 1])
+    xr_dataset.land_mask.attrs['flag_meanings'] = 'valid no_valid'
+
+    # MASK
+    # Careful : in sarwing process sometimes there are 2 & 3. Not made here
+    logging.debug("mask is a copy of land_mask")
+
+    xr_dataset['mask'] = xr.DataArray(xr_dataset.land_mask)
+    xr_dataset.mask.attrs = {}
+    xr_dataset.mask.attrs['long_name'] = 'Mask of data'
+    xr_dataset.mask.attrs['valid_range'] = np.array([0, 3])
+    xr_dataset.mask.attrs['flag_values'] = np.array([0, 1, 2, 3])
+    xr_dataset.mask.attrs['flag_meanings'] = 'valid land ice no_valid'
+
+    # ANCILLARY
+    xr_dataset['ancillary_wind'] = (xr_dataset.model_U10 + 1j * xr_dataset.model_V10) * np.exp(
+        1j * np.deg2rad(xr_dataset.ground_heading))
+    xr_dataset['ancillary_wind'] = xr.where(xr_dataset['mask'], np.nan,
+                                            xr_dataset['ancillary_wind'].compute()).transpose(
+        *xr_dataset['ancillary_wind'].dims)
+    xr_dataset.attrs['ancillary_source'] = xr_dataset['model_U10'].attrs['history'].split('decoded: ')[
+        1].strip()
+    xr_dataset = xr_dataset.drop_vars(['model_U10', 'model_V10'])
+
+    # NRCS & NESZ
+    xr_dataset['sigma0_ocean'] = xr.where(xr_dataset['mask'], np.nan,
+                                          xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
+    xr_dataset['sigma0_ocean'] = xr.where(
+        xr_dataset['sigma0_ocean'] <= 0, np.nan, xr_dataset['sigma0_ocean'])
+    
+    xr_dataset['sigma0_ocean'].attrs = xr_dataset['sigma0'].attrs
+
+    xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['mask'], np.nan,
+                                              xr_dataset['sigma0_raw'].compute()).transpose(*xr_dataset['sigma0_raw'].dims)
+    xr_dataset['sigma0_ocean_raw'] = xr.where(
+        xr_dataset['sigma0_ocean_raw'] <= 0, np.nan, xr_dataset['sigma0_ocean_raw'])
+    xr_dataset['sigma0_ocean_raw'].attrs = xr_dataset['sigma0_raw'].attrs
 
     if dual_pol:
-        dataset_1000m['owiNrcs_cross'] = dataset_1000m['sigma0_ocean'].sel(
-            pol=crosspol)
-        dataset_1000m.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
-        dataset_1000m.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
-        owiNrcs_cross = dataset_1000m['owiNrcs_cross']
-        dataset_1000m = dataset_1000m.assign(owiNesz_cross=(
-            ['line', 'sample'], dataset_1000m.nesz.sel(pol=crosspol).values))  # no flattening
 
-        # unused
-        dataset_1000m['owiNrcs_cross_no_noise_correction'] = dataset_1000m['sigma0_ocean_raw'].sel(
-            pol=crosspol)
-
-        dataset_1000m.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
-        dataset_1000m.owiNrcs_cross_no_noise_correction.attrs[
-            'long_name'] = 'Normalized Radar Cross Section, no noise correction applied'
-        dataset_1000m.owiNrcs_cross_no_noise_correction.attrs[
-            'var_definition'] = 'owiNrcs_cross - owiNesz_cross'
         if config["apply_flattening"]:
-            dataset_1000m = dataset_1000m.assign(owiNesz_cross_final=(
-                ['line', 'sample'], windspeed.nesz_flattening(dataset_1000m.owiNesz_cross, dataset_1000m.owiIncidenceAngle)))
-            dataset_1000m['owiNesz_cross_final'].attrs[
+            xr_dataset = xr_dataset.assign(nesz_cross_final=(
+                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence)))
+            xr_dataset['nesz_cross_final'].attrs[
                 "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
         else:
-            dataset_1000m = dataset_1000m.assign(
-                owiNesz_cross_final=(['line', 'sample'], dataset_1000m.owiNesz_cross.values))
-            dataset_1000m['owiNesz_cross_final'].attrs["comment"] = 'nesz has not been flattened'
+            xr_dataset = xr_dataset.assign(
+                nesz_cross_final=(['line', 'sample'], xr_dataset.nesz.sel(pol=crosspol).values))
+            xr_dataset['nesz_cross_final'].attrs["comment"] = 'nesz has not been flattened'
         # dsig
-        dataset_1000m["owiDsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], dataset_1000m.owiIncidenceAngle,
-                                                            dataset_1000m.owiNrcs_cross, dataset_1000m.owiNesz_cross_final)
-        dataset_1000m.owiDsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
-        owiDsig_cross = dataset_1000m.owiDsig_cross
+
+        sigma0_ocean_cross = xr_dataset['sigma0_ocean'].sel(pol=crosspol)
+
+        xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
+                                                      sigma0_ocean_cross, xr_dataset.nesz_cross_final)
+
+        xr_dataset.dsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
+        dsig_cross = xr_dataset.dsig_cross
     else:
-        owiNrcs_cross = None
-        owiDsig_cross = 0.1  # default value set in xsarsea
+        sigma0_ocean_cross = None
+        dsig_cross = 0.1  # default value set in xsarsea
 
-    dataset_1000m = dataset_1000m.drop_vars(['sigma0_ocean', 'sigma0', 'nesz'])
+    windspeed_co, windspeed_dual, windspeed_cr = inverse(dual_pol,
+                                                    inc=xr_dataset.incidence,
+                                                    sigma0=xr_dataset['sigma0_ocean'].sel(
+                                                        pol=copol),
+                                                    sigma0_dual=sigma0_ocean_cross,
+                                                    ancillary_wind=xr_dataset['ancillary_wind'],
+                                                    dsig_cr=dsig_cross,
+                                                    model_vv=config["GMF_" +
+                                                                    copol_gmf+"_NAME"],
+                                                    model_vh=config["GMF_"+crosspol_gmf+"_NAME"])
 
-    # 4 - Inversion
-    # 4a - co & dual inversion
-    windspeeds = windspeed.invert_from_model(
-        dataset_1000m.owiIncidenceAngle,
-        dataset_1000m.owiNrcs,
-        owiNrcs_cross,
-        # ancillary_wind=-np.conj(xsar_obj_1000m.dataset['ancillary_wind']),
-        ancillary_wind=-dataset_1000m.ancillary_wind,
-        dsig_cr=owiDsig_cross,
-        model=(config["GMF_"+copol_gmf+"_NAME"], config["GMF_"+crosspol_gmf+"_NAME"]))
-    if dual_pol:
-        windspeed_co, windspeed_dual = windspeeds
-    else:
-        windspeed_co = windspeeds
+    xr_dataset['windspeed_co']  = windspeed_co
+    xr_dataset['windspeed_dual'] = windspeed_dual
+    xr_dataset = xr_dataset.assign(
+        windspeed_cross=(['line', 'sample'], windspeed_cr))
 
-    dataset_1000m["owiWindSpeed_co"] = np.abs(windspeed_co)
-    dataset_1000m["owiWindSpeed_co"].attrs["comment"] = dataset_1000m["owiWindSpeed_co"].attrs["comment"].replace(
-        "wind speed and direction", "wind speed")
-    if dual_pol:
-        dataset_1000m["owiWindSpeed"] = np.abs(windspeed_dual)
-        dataset_1000m["owiWindSpeed"].attrs["comment"] = dataset_1000m["owiWindSpeed"].attrs["comment"].replace(
-            "wind speed and direction", "wind speed")
-    if dual_pol:
-        # 4n - cr inversion
-        """
-        windspeed_cr = windspeed.invert_from_model(
-            dataset_1000m.incidence,
-            dataset_1000m.sigma0_ocean.isel(pol=1),
-            #ancillary_wind=-np.conj(dataset_1000m['ancillary_wind']),
-            dsig_cr = dsig_cr,
-            model=config["GMF_VH_NAME"])
-
-        dataset_1000m["wind_speed_cr"] = np.abs(windspeed_cr)
-        """
-        # cr inversion ##TODO
-        windspeed_cr = windspeed.invert_from_model(
-            dataset_1000m.owiIncidenceAngle.values,
-            dataset_1000m.owiNrcs_cross.values,
-            # ancillary_wind=-np.conj(xsar_obj_1000m.dataset['ancillary_wind']),
-            dsig_cr=dataset_1000m.owiDsig_cross.values,
-            model=config["GMF_"+crosspol_gmf+"_NAME"])
-
-        windspeed_cr = np.abs(windspeed_cr)
-        dataset_1000m = dataset_1000m.assign(
-            owiWindSpeed_cross=(['line', 'sample'], windspeed_cr))
-        dataset_1000m.owiWindSpeed_cross.attrs['comment'] = "wind speed inverted from model %s (%s)" % (
-            config["GMF_"+crosspol_gmf+"_NAME"], crosspol)
-        dataset_1000m.owiWindSpeed_cross.attrs['model'] = config["GMF_" +
-                                                                 crosspol_gmf+"_NAME"]
-        dataset_1000m.owiWindSpeed_cross.attrs['units'] = 'm/s'
-    # 5 - saving
-
-    dataset_1000m = dataset_1000m.assign(
-        owiEcmwfWindSpeed=(['line', 'sample'], np.abs(dataset_1000m['ancillary_wind'].data)))
-    dataset_1000m = dataset_1000m.assign(
-        owiEcmwfWindDirection=(['line', 'sample'], np.angle(dataset_1000m['ancillary_wind'])))
-    dataset_1000m['owiEcmwfWindDirection'].attrs['comment'] = 'angle in radians, anticlockwise, 0=sample'
-    del dataset_1000m['ancillary_wind']
-
-    dataset_1000m['owiWindQuality'] = xr.full_like(dataset_1000m.owiNrcs, 0)
-    dataset_1000m['owiWindQuality'].attrs[
-        'long_name'] = "Quality flag taking into account the consistency_between_wind_inverted_and_NRCS_and_Doppler_measured"
-    dataset_1000m['owiWindQuality'].attrs['valid_range'] = np.array([0, 3])
-    dataset_1000m['owiWindQuality'].attrs['flag_values'] = np.array([
-                                                                    0, 1, 2, 3])
-    dataset_1000m['owiWindQuality'].attrs['flag_meanings'] = "good medium low poor"
-    dataset_1000m['owiWindQuality'].attrs['comment'] = 'not done yet'
-
-    dataset_1000m['owiWindFilter'] = xr.full_like(dataset_1000m.owiNrcs, 0)
-    dataset_1000m['owiWindFilter'].attrs['long_name'] = "Quality flag taking into account the local heterogeneity"
-    dataset_1000m['owiWindFilter'].attrs['valid_range'] = np.array([0, 3])
-    dataset_1000m['owiWindFilter'].attrs['flag_values'] = np.array([
-                                                                   0, 1, 2, 3])
-    dataset_1000m['owiWindFilter'].attrs[
-        'flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
-    dataset_1000m['owiWindFilter'].attrs['comment'] = 'not done yet'
-
-    dataset_1000m = dataset_1000m.drop_dims('pol')
-    dataset_1000m = dataset_1000m.rename_dims(
-        {"line": "owiAzSize", "sample": "owiRaSize"})
-    dataset_1000m = dataset_1000m.rename(
-        {"line": "owiAzSize", "sample": "owiRaSize"})
-    # dataset_1000m = dataset_1000m.swap_dims({'line':'owiAzSize','sample':'owiRaSize'})
-    # xsar_obj_1000m.recompute_attrs()
-    ds_1000 = dataset_1000m.compute()
-
-    for var in ['footprint', 'multidataset', 'rawDataStartTime', 'specialHandlingRequired']:
-        if var in ds_1000.attrs:
-            ds_1000.attrs[var] = str(ds_1000.attrs[var])
-    if "approx_transform" in ds_1000.attrs:
-        del ds_1000.attrs["approx_transform"]
-
-    ds_1000.attrs["TITLE"] = "Sentinel-1 OWI Component"
-    ds_1000.attrs["productOwner"] = "IFREMER"
-    ds_1000.attrs["sourceProduct"] = sensor
-    ds_1000.attrs["missionName"] = sensor_longname
-    ds_1000.attrs["missionPhase"] = "Test"
-    ds_1000.attrs["polarisation"] = dataset_1000m.pols
-    ds_1000.attrs["acquisitionStation"] = "/"
-    ds_1000.attrs["softwareVersion"] = "/"
-    ds_1000.attrs["pythonVersion"] = str(
-        sys.version_info.major)+'.'+str(sys.version_info.minor)
-    ds_1000.attrs["polarisationRatio"] = "/"
-    ds_1000.attrs["l2ProcessingUtcTime"] = datetime.datetime.now().strftime(
-        "%Y-%m-%dT%H:%M:%SZ")
-    ds_1000.attrs["processingCenter"] = "/"
-    try:
-        ds_1000.attrs["firstMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['start_date'],
-                                                                           "%Y-%m-%d %H:%M:%S.%f").strftime(
-            "%Y-%m-%dT%H:%M:%SZ")
-        ds_1000.attrs["lastMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['stop_date'],
-                                                                          "%Y-%m-%d %H:%M:%S.%f").strftime(
-            "%Y-%m-%dT%H:%M:%SZ")
-    except:
-        ds_1000.attrs["firstMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['start_date'],
-                                                                           "%Y-%m-%d %H:%M:%S").strftime(
-            "%Y-%m-%dT%H:%M:%SZ")
-        ds_1000.attrs["lastMeasurementTime"] = datetime.datetime.strptime(ds_1000.attrs['stop_date'],
-                                                                          "%Y-%m-%d %H:%M:%S").strftime(
-            "%Y-%m-%dT%H:%M:%SZ")
-    ds_1000.attrs["clmSource"] = "/"
-    ds_1000.attrs["bathySource"] = "/"
-    ds_1000.attrs['oswAlgorithmName'] = 'grdwindinversion'
-    ds_1000.attrs["owiAlgorithmVersion"] = grdwindinversion.__version__
-    ds_1000.attrs["gmf"] = config['GMF_'+copol_gmf+'_NAME'] + \
-        ", " + config["GMF_"+crosspol_gmf+"_NAME"]
-    ds_1000.attrs["iceSource"] = "/"
-    ds_1000.attrs["owiNoiseCorrection"] = "False"
-    ds_1000.attrs["inversionTabGMF"] = config['GMF_'+copol_gmf +
-                                              '_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"]
-    ds_1000.attrs["wnf_3km_average"] = "/"
-    ds_1000.attrs["owiWindSpeedSrc"] = "owiWindSpeed"
-    ds_1000.attrs["owiWindDirectionSrc"] = "/"
-
-    # some type like date or json must be converted to string
-    # ds_1000.attrs['start_date'] = str(ds_1000.attrs['start_date'])
-    # ds_1000.attrs['stop_date'] = str(ds_1000.attrs['stop_date'])
-    # add ipf_version and aux_cal_stop
-    # ds_1000.attrs['aux_cal_start'] = str(aux_cal_start)
-    # ds_1000.attrs['aux_cal_stop'] = str(aux_cal_stop)
-
-    # json_gcps = json.dumps(json.loads(json.dumps(
-    #    ds_1000.owiAzSize.spatial_ref.gcps, cls=JSONEncoder)))
-    # ds_1000['owiAzSize']['spatial_ref'].attrs['gcps'] = json_gcps
-    # ds_1000['owiRaSize']['spatial_ref'].attrs['gcps'] = json_gcps
-
-    # ds_1000 = ds_1000.drop_vars(["owiRaSize", "owiAzSize", "spatial_ref"])
-    ds_1000 = ds_1000.drop_vars(["spatial_ref"])
-
-    # remove possible incorect values on swath border
-    # for name in ['windspeed_co','windspeed_cr','windspeed_dual']:
-    #  ds_1000[name].values[:,0:6] = np.nan
-    #  ds_1000[name].values[:,-6::] = np.nan
+    xr_dataset, encoding = makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, config)
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
 
-    table_fillValue = {
-        "owiWindQuality": -1,
-        "owiHeading": 9999.99,
-        "owiWindDirection_IPF": -9999.0,
-        "owiWindSpeed_IPF": -9999.0,
-        "owiWindDirection": -9999.0,
-        "owiPBright": 999.99,
-        "owiWindFilter": -1,
-        "owiWindSpeed": -9999.0,
-        "owiWindSpeed_co": -9999.0,
-        "owiWindSpeed_cross": -9999.0,
-
-    }
-    encoding = {}
-    for var in list(set(ds_1000.coords.keys()) | set(ds_1000.keys())):
-        encoding[var] = {}
-        try:
-            # sarwing_ds[var].attrs["_FillValue"] = table_fillValue[var]
-            encoding[var].update({'_FillValue': table_fillValue[var]})
-        except:
-            # Nouvelles variables..
-            if (var in ["owiWindSpeed_co", "owiWindSpeed_cr", "owiWindSpeed"]):
-                # sarwing_ds[var].attrs["_FillValue"] = -9999.0
-                encoding[var].update({'_FillValue': -9999.0})
-            else:
-                encoding[var].update({'_FillValue': None})
-
-    ds_1000.attrs["xsar_version"] = xsar.__version__
-    ds_1000.attrs["xsarsea_version"] = xsarsea.__version__
-
-    ds_1000.to_netcdf(out_file, mode="w", encoding=encoding)
+    xr_dataset.to_netcdf(out_file, mode="w", encoding=encoding)
     if generateCSV:
-        df = ds_1000.to_dataframe()
+        df = xr_dataset.to_dataframe()
+        df = df[df.owiMask == False]
 
-        df = df.assign(**ds_1000.attrs)
+        df = df.assign(**xr_dataset.attrs)
         df.reset_index(drop=False, inplace=True)
         df.to_csv(out_file.replace(".nc", ".csv"))
 
-    # ds_1000.close()
-
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file, ds_1000
+    return out_file, xr_dataset

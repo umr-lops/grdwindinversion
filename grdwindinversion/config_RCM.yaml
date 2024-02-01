@@ -3,3 +3,4 @@ RCM:
     GMF_VH_NAME: "gmf_rcm_noaa"
     dsig_VH_NAME: "gmf_s1_v2"
     apply_flattening: True
+    recalibration: False
