@@ -27,6 +27,7 @@ Usage
 ------
 
  .. code-block:: python
+
     SAR_L1-to-L2_wind_processor -h
     usage: SAR_L1-to-L2_wind_processor [-h] --input_file INPUT_FILE [--config_file CONFIG_FILE] --outputdir OUTPUTDIR [--verbose] [--overwrite]
 
