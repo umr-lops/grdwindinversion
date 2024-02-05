@@ -55,10 +55,3 @@ Mission supported:
  * RadarSat-2
 
 
-Credits
--------
-
-This package was created with Cookiecutter_.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-
