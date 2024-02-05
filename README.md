@@ -1,17 +1,11 @@
-================
-grdwindinversion
-================
+
+# grdwindinversion
 
 
-.. image:: https://img.shields.io/pypi/v/grdwindinversion.svg
-        :target: https://pypi.python.org/pypi/grdwindinversion
 
-.. image:: https://img.shields.io/travis/agrouaze/grdwindinversion.svg
-        :target: https://travis-ci.com/agrouaze/grdwindinversion
+[![Python Version](https://img.shields.io/pypi/pyversions/grdwindinversion.svg)](https://pypi.org/project/grdwindinversion/)
+[![Dependencies Status](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)](https://github.com/umr-lops/grdwindinversion/pulls?utf8=%E2%9C%93&q=is%3Apr%20author%3Aapp%2Fdependabot)
 
-.. image:: https://readthedocs.org/projects/grdwindinversion/badge/?version=latest
-        :target: https://grdwindinversion.readthedocs.io/en/latest/?version=latest
-        :alt: Documentation Status
 
 
 
@@ -23,10 +17,10 @@ Package to perform Wind inversion from GRD Level-1 SAR images
 * Documentation: https://grdwindinversion.readthedocs.io.
 
 
-Usage
-------
+## Usage
 
- .. code-block:: python
+
+ ```python
 
     SAR_L1-to-L2_wind_processor -h
     usage: SAR_L1-to-L2_wind_processor [-h] --input_file INPUT_FILE [--config_file CONFIG_FILE] --outputdir OUTPUTDIR [--verbose] [--overwrite]
@@ -42,11 +36,10 @@ Usage
       --outputdir OUTPUTDIR
       --verbose
       --overwrite           overwrite existing .nc files [default is False]
+```
 
 
-
-Features
---------
+## Features
 
 This Python library (based on `xarray`) allows to perform wind inversion from level-1 GRD (projected magnitude image).
 Mission supported:
