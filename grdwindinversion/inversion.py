@@ -226,6 +226,12 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
     xr_dataset.owiNrcs_no_noise_correction.attrs[
             'comment'] = 'owiNrcs_no_noise_correction ; no recalibration'
     
+    if 'swath_number' in xr_dataset:
+        xr_dataset = xr_dataset.rename({
+             'swath_number' : 'owiSwathNumber',
+             'swath_number_flag' : 'owiSwathNumberFlag'
+            })
+        
     if "sigma0_raw__corrected" in xr_dataset:
         xr_dataset['owiNrcs_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(pol=copol)
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
@@ -238,10 +244,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
 
             
-        xr_dataset = xr_dataset.rename({
-         'swath_number' : 'owiSwathNumber',
-         'swath_number_flag' : 'owiSwathNumberFlag'
-        })
+
 
     
     if dual_pol:
