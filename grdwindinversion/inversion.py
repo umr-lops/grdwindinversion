@@ -173,10 +173,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
         model=(model_vv, model_vh))
     if dual_pol:
         windspeed_co, windspeed_dual = windspeeds
-    else:
-        windspeed_co = windspeeds
-
-    if dual_pol:
+        
         windspeed_cr = windspeed.invert_from_model(
             inc.values,
             sigma0_dual.values,
@@ -185,8 +182,10 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
             model=model_vh)
 
         return np.abs(windspeed_co), np.abs(windspeed_dual), np.abs(windspeed_cr)
+    else:
+        windspeed_co = windspeeds
 
-    return windspeed_co, None, None
+    return np.abs(windspeed_co), None, None
 
 
 
@@ -202,11 +201,9 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'ground_heading': 'owiHeading',
         'land_mask': 'owiLandFlag',
         'mask' : 'owiMask',
-        'dsig_cross': 'owiDsig_cross',
         'windspeed_co': 'owiWindSpeed_co',
         'windspeed_cross': 'owiWindSpeed_cross',
-        'windspeed_dual': 'owiWindSpeed',
-        'nesz_cross_final' : 'owiNesz_cross_final',        
+        'windspeed_dual': 'owiWindSpeed',     
     })
         
     xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
@@ -248,6 +245,12 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
 
     
     if dual_pol:
+        
+        xr_dataset = xr_dataset.rename({
+            'dsig_cross': 'owiDsig_cross',
+            'nesz_cross_final' : 'owiNesz_cross_final'
+        })        
+        
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
             pol=crosspol)
         xr_dataset.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
@@ -607,8 +610,11 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
 
     xr_dataset['windspeed_co']  = windspeed_co
     xr_dataset['windspeed_dual'] = windspeed_dual
-    xr_dataset = xr_dataset.assign(
-        windspeed_cross=(['line', 'sample'], windspeed_cr))
+    if dual_pol:
+        xr_dataset = xr_dataset.assign(
+            windspeed_cross=(['line', 'sample'], windspeed_cr))
+    else : 
+        xr_dataset['windspeed_cross'] = windspeed_cr
 
     xr_dataset, encoding = makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, config)
 
