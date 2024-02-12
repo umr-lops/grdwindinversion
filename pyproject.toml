@@ -1,14 +1,9 @@
 [project]
 name = "grdwindinversion"
-description="Package to perform Wind inversion from GRD Level-1 SAR images"
-readme = "README.rst"
-#long_description='Python library using xarray objects to compute wind speed from SAR observations over ocean'
-#long_description_content_type='text/x-rst'
-#url='https://github.com/agrouaze/grdwindinversion'
 requires-python = ">= 3.9"
+description = "Package to perform Wind inversion from GRD Level-1 SAR images"
+readme = "README.md"
 license = {text = "MIT"}
-#author="Antoine Grouazel"
-#author_email='antoine.grouazel@ifremer.fr'
 dependencies = [
     "xsar",
     "xsarsea",
