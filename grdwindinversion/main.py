@@ -13,7 +13,7 @@ def processor_starting_point():
         description='Perform inversion from S1(L1-GRD) SAFE, L1-RCM, L1-RS2 ; using xsar/xsarsea tools')
     parser.add_argument('--input_file', help='input file path', required=True)
     parser.add_argument('--config_file',
-                        help='config file path [if not provided will take config file based on input file]',required=False)
+                        help='config file path [if not provided will take config file based on input file]',required=True)
                         
     parser.add_argument('--resolution',required=False, default='1000m', help='set resolution ["full" | "1000m" | "xXxm"]')
      
@@ -43,21 +43,8 @@ def processor_starting_point():
     # if '1SSH' in input_file or '1SDH' in input_file or '_HH_HV' in input_file:
     #     raise Exception('this processor only handle acquisitions with VV or VV+VH polarization for now.')
     
-    if args.config_file is None:
-        if 'S1' in input_file:
-            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_S1.yaml')
-        elif 'RCM' in input_file:
-            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_RCM.yaml')
-        elif 'RS2' in input_file:
-            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_RS2.yaml')
-        elif 'hy2b' in input_file:
-            config_file = os.path.join(os.path.dirname(grdwindinversion.__file__),'config_hy2b.yaml')
-        else:
-            raise Exception('config data file cannot be defined using the input filename')
-    else:
-        config_file = args.config_file
-        
-    
+
+    config_file = args.config_file     
     out_folder = args.outputdir
     resolution = args.resolution
     if resolution == "full":

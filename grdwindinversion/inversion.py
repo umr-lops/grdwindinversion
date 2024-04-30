@@ -162,6 +162,13 @@ def getAncillary(meta):
 
 def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_vv, model_vh):
     logging.debug("inversion")
+    
+    #add potential missing gmfs
+    if (model_vv in xsarsea.windspeed.available_models().index.values) == False:
+        windspeed.register_all_nc_luts(getConf()["luts_subset_path"])
+    if (model_vh in xsarsea.windspeed.available_models().index.values) == False:
+        windspeed.register_all_nc_luts(getConf()["luts_subset_path"])    
+    
     # 4 - Inversion
     windspeeds = windspeed.invert_from_model(
         inc,
@@ -450,9 +457,6 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
             'config_path do not exists, got %s ' % config_path)
     
     recalibration = config["recalibration"]
-    if recalibration:
-        aux_config_name=config["aux_config_name"]
-    
     meta = fct_meta(filename)
     out_file = getOutputName2(filename, out_folder, sensor, meta)
 
@@ -469,15 +473,15 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
 
     try:
         if ((recalibration) & ("SENTINEL" in sensor_longname)):
-            logging.info('recalibration is True : Kersten formula is applied')
+            logging.info(f'recalibration is {recalibration} : Kersten formula is applied')
             xsar_dataset = fct_dataset(
-                meta, resolution=resolution, recalibration=recalibration, aux_config_name = aux_config_name)
+                meta, resolution=resolution, recalibration=recalibration)
             xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
             xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
   
         else:
             logging.info(
-                'recalibration is True : Kersten formula is not applied')
+                f'recalibration is {recalibration} : Kersten formula is not applied')
             if ("SENTINEL" in sensor_longname):
                 xsar_dataset = fct_dataset(meta, resolution=resolution,recalibration=recalibration)
                 xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
