@@ -250,7 +250,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         
         xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
 
-            
 
 
     
@@ -478,7 +477,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                 meta, resolution=resolution, recalibration=recalibration)
             xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
             xr_dataset = xr_dataset.merge(xsar_dataset.datatree["recalibration"].to_dataset()[['swath_number','swath_number_flag','sigma0_raw__corrected']])
-  
+
         else:
             logging.info(
                 f'recalibration is {recalibration} : Kersten formula is not applied')
@@ -498,13 +497,18 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         xr_dataset.attrs['L1_path'] = xr_dataset.attrs.pop('name')
         xr_dataset.attrs["sourceProduct"] = sensor
         xr_dataset.attrs["missionName"] = sensor_longname
-        
+        if ((recalibration) & ("SENTINEL" in sensor_longname)):
+            xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_new'])))
+            xr_dataset.attrs["path_aux_cal_new"] = os.path.basename(os.path.dirname(os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_new'])))
+
+        xr_dataset.attrs["path_aux_pp1_old"] = os.path.basename(os.path.dirname(os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_old'])))
+        xr_dataset.attrs["path_aux_cal_old"] = os.path.basename(os.path.dirname(os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
+
     except Exception as e:
         logging.info('%s', traceback.format_exc())
         logging.error(e)
         sys.exit(-1)
     
-
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
         dual_pol = True
@@ -604,6 +608,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         sigma0_ocean_cross = None
         dsig_cross = 0.1  # default value set in xsarsea
 
+    
     windspeed_co, windspeed_dual, windspeed_cr = inverse(dual_pol,
                                                     inc=xr_dataset.incidence,
                                                     sigma0=xr_dataset['sigma0_ocean'].sel(
@@ -611,8 +616,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                                                     sigma0_dual=sigma0_ocean_cross,
                                                     ancillary_wind=xr_dataset['ancillary_wind'],
                                                     dsig_cr=dsig_cross,
-                                                    model_vv=config["GMF_" +
-                                                                    copol_gmf+"_NAME"],
+                                                    model_vv=config["GMF_"+copol_gmf+"_NAME"],
                                                     model_vh=config["GMF_"+crosspol_gmf+"_NAME"])
 
     xr_dataset['windspeed_co']  = windspeed_co
