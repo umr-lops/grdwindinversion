@@ -116,7 +116,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
 
 
-def getAncillary(meta):
+def getAncillary(meta, ancillary_name='ecmwf'):
     """
     Map ancillary wind from ECMWF.
     This function is used to check if the ECMWF files are available and to map the model to the SAR data.
@@ -131,54 +131,62 @@ def getAncillary(meta):
         map model to SAR data
     """
 
-    logging.debug('conf: %s', getConf())
-    ec01 = getConf()['ecmwf_0100_1h']
-    ec0125 = getConf()['ecmwf_0125_1h']
-    logging.debug('ec01 : %s', ec01)
-    meta.set_raster('ecmwf_0100_1h', ec01)
-    meta.set_raster('ecmwf_0125_1h', ec0125)
+    if ancillary_name == 'ecmwf':
 
-    map_model = None
-    # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
-    for ecmwf_name in ['ecmwf_0125_1h', 'ecmwf_0100_1h']:
-        ecmwf_infos = meta.rasters.loc[ecmwf_name]
-        try:
-            ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                     date=datetime.datetime.strptime(meta.start_date,
-                                                                                     '%Y-%m-%d %H:%M:%S.%f'))[1]
-        # temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
-        except Exception as e:
-            ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                     date=datetime.datetime.strptime(meta.start_date,
-                                                                                     '%Y-%m-%d %H:%M:%S'))[1]
-        if not os.path.isfile(ecmwf_file):
-            # temporary
-            # if repro does not exist we look at not repro folder (only one will exist after)
-            if ecmwf_name == "ecmwf_0100_1h":
-                ecmwf_infos['resource'] = ecmwf_infos['resource'].replace(
-                    "netcdf_light_REPRO_tree", "netcdf_light")
-                try:
-                    ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                             date=datetime.datetime.strptime(meta.start_date,
-                                                                                             '%Y-%m-%d %H:%M:%S.%f'))[1]
-                except Exception as e:
-                    ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                             date=datetime.datetime.strptime(meta.start_date,
-                                                                                             '%Y-%m-%d %H:%M:%S'))[1]
+        logging.debug('conf: %s', getConf())
+        ec01 = getConf()['ecmwf_0100_1h']
+        ec0125 = getConf()['ecmwf_0125_1h']
+        logging.debug('ec01 : %s', ec01)
+        meta.set_raster('ecmwf_0100_1h', ec01)
+        meta.set_raster('ecmwf_0125_1h', ec0125)
 
-                if not os.path.isfile(ecmwf_file):
-                    meta.rasters = meta.rasters.drop([ecmwf_name])
+        map_model = None
+        # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
+        for ecmwf_name in ['ecmwf_0125_1h', 'ecmwf_0100_1h']:
+            ecmwf_infos = meta.rasters.loc[ecmwf_name]
+            try:
+                ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
+                                                         date=datetime.datetime.strptime(meta.start_date,
+                                                                                         '%Y-%m-%d %H:%M:%S.%f'))[1]
+            # temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
+            except Exception as e:
+                ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
+                                                         date=datetime.datetime.strptime(meta.start_date,
+                                                                                         '%Y-%m-%d %H:%M:%S'))[1]
+            if not os.path.isfile(ecmwf_file):
+                # temporary
+                # if repro does not exist we look at not repro folder (only one will exist after)
+                """
+                if ecmwf_name == "ecmwf_0100_1h":
+                    ecmwf_infos['resource'] = ecmwf_infos['resource'].replace(
+                        "netcdf_light_REPRO_tree", "netcdf_light")
+                    try:
+                        ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
+                                                                 date=datetime.datetime.strptime(meta.start_date,
+                                                                                                 '%Y-%m-%d %H:%M:%S.%f'))[1]
+                    except Exception as e:
+                        ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
+                                                                 date=datetime.datetime.strptime(meta.start_date,
+                                                                                                 '%Y-%m-%d %H:%M:%S'))[1]
+
+                    if not os.path.isfile(ecmwf_file):
+                        meta.rasters = meta.rasters.drop([ecmwf_name])
+                    else:
+                        map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in [
+                            'U10', 'V10']}
+
                 else:
-                    map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in [
-                        'U10', 'V10']}
-
-            else:
+                """
                 meta.rasters = meta.rasters.drop([ecmwf_name])
-        else:
-            map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' %
-                         uv for uv in ['U10', 'V10']}
+            else:
+                map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' %
+                             uv for uv in ['U10', 'V10']}
 
-    return map_model
+        return map_model
+
+    else:
+        raise ValueError("ancillary_name must be ecmwf, got %s" %
+                         ancillary_name)
 
 
 def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_vv, model_vh):
@@ -219,12 +227,13 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
     """
     logging.debug("inversion")
 
-    # add potential missing gmfs
-    if (model_vv in xsarsea.windspeed.available_models().index.values) == False:
-        windspeed.register_all_nc_luts(getConf()["luts_subset_path"])
-    if (model_vh in xsarsea.windspeed.available_models().index.values) == False:
-        windspeed.register_all_nc_luts(getConf()["luts_subset_path"])
-        windspeed.register_all_sarwing_luts(getConf()["luts_subset_path"])
+    # add potential missing gmfs (only cmod7 & ms1ahw)
+
+    if (model_vv == "gmf_cmod7"):
+        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
+
+    if (model_vh == "sarwing_lut_cmodms1ahw"):
+        windspeed.register_one_sarwing_lut(getConf()["lut_ms1ahw_path"])
 
     winds = windspeed.invert_from_model(
         inc,
@@ -300,7 +309,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'ancillary_wind_speed': 'owiEcmwfWindSpeed',
         'ancillary_wind_direction': 'owiEcmwfWindDirection',
     })
-
     xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
     xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
     xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
@@ -549,7 +557,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         logging.info("out_file %s exists ; returning empty Dataset" % out_file)
         return out_file, xr.Dataset()
 
-    map_model = getAncillary(meta)
+    map_model = getAncillary(meta, ancillary_name=config["ancillary"])
     if map_model is None:
         raise Exception(
             'the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
@@ -654,23 +662,26 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     # ANCILLARY
     xr_dataset['ancillary_wind_direction'] = (
         90. - np.rad2deg(np.arctan2(xr_dataset.model_V10, xr_dataset.model_U10)) + 180) % 360
+
+    xr_dataset['ancillary_wind_direction'] = xr.where(xr_dataset['mask'], np.nan,
+                                                      xr_dataset['ancillary_wind_direction'].compute()).transpose(
+        *xr_dataset['ancillary_wind_direction'].dims)
+    xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
     xr_dataset['ancillary_wind_direction'].attrs[
         'long_name'] = 'ECMWF Wind direction (meteorological convention)'
     xr_dataset['ancillary_wind_direction'].attrs['standart_name'] = 'wind_direction'
-    xr_dataset['ancillary_wind_direction'] = xr.where(xr_dataset['mask'], np.nan,
-                                                      xr_dataset['ancillary_wind_direction'].compute()).transpose(
-        *xr_dataset['ancillary_wind_direction'].dims)
 
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
         xr_dataset['model_U10']**2+xr_dataset['model_V10']**2)
+    xr_dataset['ancillary_wind_speed'] = xr.where(xr_dataset['mask'], np.nan,
+                                                  xr_dataset['ancillary_wind_speed'].compute()).transpose(
+        *xr_dataset['ancillary_wind_speed'].dims)
+    xr_dataset['ancillary_wind_speed'].attrs = {}
     xr_dataset['ancillary_wind_speed'].attrs['units'] = 'm s^-1'
     xr_dataset['ancillary_wind_speed'].attrs[
         'long_name'] = 'ECMWF Wind speed'
     xr_dataset['ancillary_wind_speed'].attrs['standart_name'] = 'wind_speed'
-    xr_dataset['ancillary_wind_speed'] = xr.where(xr_dataset['mask'], np.nan,
-                                                  xr_dataset['ancillary_wind_speed'].compute()).transpose(
-        *xr_dataset['ancillary_wind_speed'].dims)
 
     xr_dataset['ancillary_wind'] = xr.where(xr_dataset['mask'], np.nan,
                                             (xr_dataset.ancillary_wind_speed * np.exp(1j * xsarsea.dir_geo_to_sample(xr_dataset.ancillary_wind_direction, xr_dataset.ground_heading))).compute()).transpose(

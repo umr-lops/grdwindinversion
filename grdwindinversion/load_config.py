@@ -11,7 +11,6 @@ if os.path.exists(local_config_potential_path):
 else:
     config_path = os.path.join(os.path.dirname(
         grdwindinversion.__file__), 'data_config.yaml')
-# config_path = "./data_config.yaml"
 logging.info('config path: %s', config_path)
 stream = open(config_path, 'r')
 conf = load(stream, Loader=Loader)
@@ -19,7 +18,7 @@ conf = load(stream, Loader=Loader)
 
 def getConf():
     """
-    if grdwindinversion/local_data_config.yaml exists it will superseed grdwindinversion/data_config.yaml
+    if local_config_potential_path exists it will superseed config_path
     :return:
     """
     return conf
