@@ -118,8 +118,8 @@ def getOutputName2(input_file, out_folder, sensor, meta):
 
 def getAncillary(meta, ancillary_name='ecmwf'):
     """
-    Map ancillary wind from ECMWF.
-    This function is used to check if the ECMWF files are available and to map the model to the SAR data.
+    Map ancillary wind from ECMWF or ERA5.
+    This function is used to check if the model files are available and to map the model to the SAR data.
 
     Parameters
     ----------
@@ -184,8 +184,31 @@ def getAncillary(meta, ancillary_name='ecmwf'):
 
         return map_model
 
+    elif ancillary_name == 'era5':
+        era5_name = "era5_0250_1h"
+        logging.debug('conf: %s', getConf())
+        era0250 = getConf()[era5_name]
+        logging.debug('%s : %s', (era5_name, era0250))
+        meta.set_raster(era5_name, era0250)
+
+        era5_infos = meta.rasters.loc[era5_name]
+        try:
+            era5_file = era5_infos['get_function'](era5_infos['resource'],
+                                                   date=datetime.datetime.strptime(meta.start_date,
+                                                                                   '%Y-%m-%d %H:%M:%S.%f'))[1]
+        except Exception as e:
+            era5_file = era5_infos['get_function'](era5_infos['resource'],
+                                                   date=datetime.datetime.strptime(meta.start_date,
+                                                                                   '%Y-%m-%d %H:%M:%S'))[1]
+        if not os.path.isfile(era5_file):
+            raise ValueError(f"era5 file {era5_file} not found")
+
+        map_model = {'%s_%s' % (era5_name, uv): 'model_%s' %
+                     uv for uv in ['U10', 'V10']}
+        return map_model
+
     else:
-        raise ValueError("ancillary_name must be ecmwf, got %s" %
+        raise ValueError("ancillary_name must be ecmwf/era5, got %s" %
                          ancillary_name)
 
 
@@ -306,8 +329,8 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'winddir_co': 'owiWindDirection_co',
         'winddir_cross': 'owiWindDirection_cross',
         'winddir_dual': 'owiWindDirection',
-        'ancillary_wind_speed': 'owiEcmwfWindSpeed',
-        'ancillary_wind_direction': 'owiEcmwfWindDirection',
+        'ancillary_wind_speed': 'owiAncillaryWindSpeed',
+        'ancillary_wind_direction': 'owiAncillaryWindDirection',
     })
     xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
     xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
@@ -557,10 +580,11 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         logging.info("out_file %s exists ; returning empty Dataset" % out_file)
         return out_file, xr.Dataset()
 
-    map_model = getAncillary(meta, ancillary_name=config["ancillary"])
+    ancillary_name = config["ancillary"]
+    map_model = getAncillary(meta, ancillary_name)
     if map_model is None:
         raise Exception(
-            'the weather model is not set `map_model` is None -> you probably don"t have access to ECMWF archive')
+            f'the weather model is not set `map_model` is None -> you probably don"t have access to f{ancillary_name} archive')
 
     try:
         if ((recalibration) & ("SENTINEL" in sensor_longname)):
@@ -669,7 +693,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
     xr_dataset['ancillary_wind_direction'].attrs[
-        'long_name'] = 'ECMWF Wind direction (meteorological convention)'
+        'long_name'] = f'{ancillary_name} Wind direction (meteorological convention)'
     xr_dataset['ancillary_wind_direction'].attrs['standart_name'] = 'wind_direction'
 
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
@@ -680,7 +704,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     xr_dataset['ancillary_wind_speed'].attrs = {}
     xr_dataset['ancillary_wind_speed'].attrs['units'] = 'm s^-1'
     xr_dataset['ancillary_wind_speed'].attrs[
-        'long_name'] = 'ECMWF Wind speed'
+        'long_name'] = f'{ancillary_name} Wind speed'
     xr_dataset['ancillary_wind_speed'].attrs['standart_name'] = 'wind_speed'
 
     xr_dataset['ancillary_wind'] = xr.where(xr_dataset['mask'], np.nan,
