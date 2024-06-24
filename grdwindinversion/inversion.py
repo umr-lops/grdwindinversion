@@ -324,11 +324,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         'offboresight': 'owiOffBoresightAngle',
         'mask': 'owiMask',
         'windspeed_co': 'owiWindSpeed_co',
-        'windspeed_cross': 'owiWindSpeed_cross',
-        'windspeed_dual': 'owiWindSpeed',
         'winddir_co': 'owiWindDirection_co',
-        'winddir_cross': 'owiWindDirection_cross',
-        'winddir_dual': 'owiWindDirection',
         'ancillary_wind_speed': 'owiAncillaryWindSpeed',
         'ancillary_wind_direction': 'owiAncillaryWindDirection',
     })
@@ -374,7 +370,11 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
 
         xr_dataset = xr_dataset.rename({
             'dsig_cross': 'owiDsig_cross',
-            'nesz_cross_final': 'owiNesz_cross_final'
+            'nesz_cross_final': 'owiNesz_cross_final',
+            'winddir_cross': 'owiWindDirection_cross',
+            'winddir_dual': 'owiWindDirection',
+            'windspeed_cross': 'owiWindSpeed_cross',
+            'windspeed_dual': 'owiWindSpeed',
         })
 
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
@@ -766,21 +766,20 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
 
     #  get windspeeds
     xr_dataset['windspeed_co'] = np.abs(wind_co)
-    xr_dataset['windspeed_dual'] = np.abs(wind_dual)
-
-    if dual_pol:
-        xr_dataset = xr_dataset.assign(
-            windspeed_cross=(['line', 'sample'], windspeed_cr))
-    else:
-        xr_dataset['windspeed_cross'] = windspeed_cr
 
     #  get winddirections
     xr_dataset['winddir_co'] = (
         90 - (np.angle(-np.conj(wind_co), deg=True)) + xr_dataset.ground_heading) % 360
 
-    xr_dataset['winddir_dual'] = (
-        90 - (np.angle(-np.conj(wind_dual), deg=True)) + xr_dataset.ground_heading) % 360
-    xr_dataset['winddir_cross'] = xr_dataset['winddir_dual'].copy()
+    if dual_pol:
+        xr_dataset['windspeed_dual'] = np.abs(wind_dual)
+
+        xr_dataset = xr_dataset.assign(
+            windspeed_cross=(['line', 'sample'], windspeed_cr))
+
+        xr_dataset['winddir_dual'] = (
+            90 - (np.angle(-np.conj(wind_dual), deg=True)) + xr_dataset.ground_heading) % 360
+        xr_dataset['winddir_cross'] = xr_dataset['winddir_dual'].copy()
 
     xr_dataset, encoding = makeL2asOwi(
         xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, config)
