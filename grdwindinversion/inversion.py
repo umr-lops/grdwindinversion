@@ -466,12 +466,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
 
     xr_dataset.compute()
 
-    for var in ['footprint', 'multidataset', 'rawDataStartTime', 'specialHandlingRequired']:
-        if var in xr_dataset.attrs:
-            xr_dataset.attrs[var] = str(xr_dataset.attrs[var])
-        if "approx_transform" in xr_dataset.attrs:
-            del xr_dataset.attrs["approx_transform"]
-
     table_fillValue = {
         "owiWindQuality": -1,
         "owiHeading": 9999.99,
@@ -581,6 +575,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                 xr_dataset = xsar_dataset.datatree['measurement'].to_dataset()
 
         xr_dataset = xr_dataset.rename(map_model)
+        xr_dataset.attrs = xsar_dataset.dataset.attrs
 
     except Exception as e:
         logging.info('%s', traceback.format_exc())
@@ -805,7 +800,6 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     #  add attributes
     firstMeasurementTime = None
     lastMeasurementTime = None
-
     try:
         firstMeasurementTime = datetime.datetime.strptime(xr_dataset.attrs['start_date'],
                                                           "%Y-%m-%d %H:%M:%S.%f").strftime(
@@ -824,7 +818,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     attrs = {
         "TITLE": "Sentinel-1 OWI Component",
         "productOwner": "IFREMER",
-        "sourceProduct": xr_dataset.attrs["safe"],
+        "sourceProduct": (xr_dataset.attrs["safe"] if "safe" in xr_dataset.attrs else os.path.basename(xr_dataset.attrs["product_path"])),
         "sourceProduct_fullpath": xr_dataset.attrs.pop('name'),
         "missionName": sensor_longname,
         "missionPhase":  "Operational",
@@ -849,7 +843,8 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                                   '_NAME'] + ", " + config["GMF_"+crosspol_gmf+"_NAME"],
         "wnf_3km_average": "False",
         "owiWindSpeedSrc": "owiWindSpeed",
-        "owiWindDirectionSrc": "/"
+        "owiWindDirectionSrc": "/",
+        "ancillary_source": xr_dataset.attrs['ancillary_source']
     }
 
     if ((recalibration) & ("SENTINEL" in sensor_longname)):
@@ -865,12 +860,17 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
 
     # new one to match convention
     _S1_added_attrs = ["product", "ipf", "multi_dataset", "footprint",
-                       "coverage", "orbit_pass", "platform_heading", "ancillary_source"]
-    _RS2_added_attrs = []
-    _RCM_added_attrs = ["swath", "footprint", "coverage"]
+                       "coverage", "orbit_pass", "platform_heading"]
+    _RS2_added_attrs = ["passDirection", "swath", "footprint", "coverage"]
+    _RCM_added_attrs = ["swath", "footprint", "coverage", "productId",]
+
     for sup_attr in _S1_added_attrs + _RS2_added_attrs + _RCM_added_attrs:
         if sup_attr in xr_dataset.attrs:
             attrs[sup_attr] = xr_dataset.attrs[sup_attr]
+    for var in ['footprint', 'multidataset']:
+        if var in attrs:
+            attrs[var] = str(attrs[var])
+
     xr_dataset.attrs = attrs
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
