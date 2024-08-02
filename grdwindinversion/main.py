@@ -7,8 +7,6 @@ import logging
 
 def processor_starting_point():
     import argparse
-    import os
-    from pathlib import Path
 
     parser = argparse.ArgumentParser(
         description='Perform inversion from S1(L1-GRD) SAFE, L1-RCM, L1-RS2 ; using xsar/xsarsea tools')

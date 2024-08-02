@@ -10,7 +10,6 @@ import sys
 import datetime
 import os
 import yaml
-from pathlib import Path
 from scipy.ndimage import binary_dilation
 
 import re
@@ -516,20 +515,22 @@ def preprocess(filename, outdir, config_path, config_luts_path, overwrite=False,
     sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
         filename)
 
-    if Path(config_luts_path).exists():
-        config_luts = yaml.load(
-            Path(config_luts_path).open(),
-            Loader=yaml.FullLoader
-        )
+    if os.path.exists(config_luts_path):
+        with open(config_luts_path, 'r') as file:
+            config_luts = yaml.load(
+                file,
+                Loader=yaml.FullLoader
+            )
     else:
         raise FileNotFoundError(
             'config_luts_path do not exists, got %s ' % config_luts_path)
 
-    if Path(config_path).exists():
-        config_base = yaml.load(
-            Path(config_path).open(),
-            Loader=yaml.FullLoader
-        )
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as file:
+            config_base = yaml.load(
+                file,
+                Loader=yaml.FullLoader
+            )
         try:
             config = config_base[sensor]
         except Exception:
