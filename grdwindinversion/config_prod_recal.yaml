@@ -5,6 +5,10 @@ S1A:
     apply_flattening: True
     recalibration: True
     ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
 S1B:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"
@@ -12,6 +16,10 @@ S1B:
     apply_flattening: True
     recalibration: True
     ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
 RS2:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_rs2_v2"
@@ -19,6 +27,10 @@ RS2:
     apply_flattening: False
     recalibration: True
     ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
 RCM:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_rcm_noaa"
@@ -26,3 +38,7 @@ RCM:
     apply_flattening: True
     recalibration: True
     ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
