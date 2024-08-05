@@ -1,0 +1,4 @@
+inc_step: 0.1
+wspd_step: 0.1
+phi_step: 1.0
+resolution: "high"

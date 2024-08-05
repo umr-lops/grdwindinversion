@@ -10,7 +10,6 @@ import sys
 import datetime
 import os
 import yaml
-from pathlib import Path
 from scipy.ndimage import binary_dilation
 
 import re
@@ -50,7 +49,7 @@ def getSensorMetaDataset(filename):
         raise ValueError("must be S1A|S1B|RS2|RCM, got filename %s" % filename)
 
 
-def getOutputName2(input_file, out_folder, sensor, meta):
+def getOutputName2(input_file, outdir, sensor, meta):
     """
     Create output filename for L2-GRD product
 
@@ -58,7 +57,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
     ----------
     input_file : str
         input filename
-    out_folder : str
+    outdir : str
         output folder
     sensor : str
         sensor name
@@ -85,7 +84,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         match = regex.match(basename_match)
         MISSIONID, BEAM, PRODUCT, RESOLUTION, LEVEL, CLASS, POL, STARTDATE, STOPDATE, ORBIT, TAKEID, PRODID = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
-        out_file = os.path.join(out_folder, basename, new_format)
+        out_file = os.path.join(outdir, basename, new_format)
         return out_file
 
     elif sensor == 'RS2':
@@ -97,7 +96,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
 
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
-        out_file = os.path.join(out_folder, basename, new_format)
+        out_file = os.path.join(outdir, basename, new_format)
         return out_file
 
     elif sensor == 'RCM':
@@ -108,7 +107,7 @@ def getOutputName2(input_file, out_folder, sensor, meta):
         match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
-        out_file = os.path.join(out_folder, basename, new_format)
+        out_file = os.path.join(outdir, basename, new_format)
         return out_file
 
     else:
@@ -212,7 +211,7 @@ def getAncillary(meta, ancillary_name='ecmwf'):
                          ancillary_name)
 
 
-def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_vv, model_vh):
+def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_vv, model_vh, **kwargs):
     """
     Invert sigma0 to retrieve wind using model (lut or gmf).
 
@@ -228,7 +227,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
         sigma0 to be inverted for dualpol
     ancillary_wind=: xarray.DataArray (numpy.complex28)
         ancillary wind
-            | (for example ecmwf winds), in **model convention**
+            | (for example ecmwf winds), in **GMF convention** (-np.conj included), 
     dsig_cr=: float or xarray.DataArray
         parameters used for
 
@@ -250,21 +249,23 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
     """
     logging.debug("inversion")
 
-    # add potential missing gmfs (only cmod7 & ms1ahw)
-
-    if (model_vv == "gmf_cmod7"):
-        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
-
-    if (model_vh == "sarwing_lut_cmodms1ahw"):
-        windspeed.register_one_sarwing_lut(getConf()["lut_ms1ahw_path"])
+    list_mods = windspeed.available_models().index.tolist(
+    ) + windspeed.available_models().alias.tolist() + [None]
+    if model_vv not in list_mods:
+        raise ValueError(
+            f"model_vv {model_vv} not in windspeed.available_models() : not going further")
+    if model_vh not in list_mods:
+        raise ValueError(
+            f"model_vh {model_vh} not in windspeed.available_models() : not going further")
 
     winds = windspeed.invert_from_model(
         inc,
         sigma0,
         sigma0_dual,
-        ancillary_wind=-np.conj(ancillary_wind),
+        ancillary_wind=ancillary_wind,
         dsig_cr=dsig_cr,
-        model=(model_vv, model_vh))
+        model=(model_vv, model_vh),
+        **kwargs)
 
     if dual_pol:
         wind_co, wind_dual = winds
@@ -273,7 +274,8 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
             inc.values,
             sigma0_dual.values,
             dsig_cr=dsig_cr.values,
-            model=model_vh)
+            model=model_vh,
+            **kwargs)
 
         return wind_co, wind_dual, wind_cross
     else:
@@ -282,7 +284,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
     return wind_co, None, None
 
 
-def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, config):
+def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
     """
     Rename xr_dataset variables and attributes to match naming convention.
 
@@ -296,12 +298,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         copolarization name
     crosspol: str
         crosspolarization name
-    copol_gmf: str
-        copolarization GMF name
-    crosspol_gmf: str
-        crosspolarization GMF name
-    config: dict
-        configuration file
 
     Returns
     -------
@@ -462,8 +458,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
         xr_dataset = xr_dataset.drop_vars(["sigma0_raw__corrected"])
     xr_dataset = xr_dataset.drop_dims(['pol'])
 
-    # attrs
-
     xr_dataset.compute()
 
     table_fillValue = {
@@ -493,7 +487,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, 
     return xr_dataset, encoding
 
 
-def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True, resolution='1000m'):
+def preprocess(filename, outdir, config_path, config_luts_path, overwrite=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -501,35 +495,44 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     ----------
     filename : str
         input filename
-    out_folder : str
+    outdir : str
         output folder
     config_path : str
         configuration file path
+    config_luts_path : str
+        configuration LUTs file path
     overwrite : bool, optional
         overwrite existing file
-    generateCSV : bool, optional
-        generate CSV file
     resolution : str, optional
         working resolution
 
     Returns
     -------
-    str
-        output filename
     xarray.Dataset
-        final dataset
+        final dataset   
     """
 
     sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
         filename)
 
-    if Path(config_path).exists():
-        config = yaml.load(
-            Path(config_path).open(),
-            Loader=yaml.FullLoader
-        )
+    if os.path.exists(config_luts_path):
+        with open(config_luts_path, 'r') as file:
+            config_luts = yaml.load(
+                file,
+                Loader=yaml.FullLoader
+            )
+    else:
+        raise FileNotFoundError(
+            'config_luts_path do not exists, got %s ' % config_luts_path)
+
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as file:
+            config_base = yaml.load(
+                file,
+                Loader=yaml.FullLoader
+            )
         try:
-            config = config[sensor]
+            config = config_base[sensor]
         except Exception:
             raise KeyError("sensor %s not in this config" % sensor)
     else:
@@ -538,11 +541,10 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
 
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
-    out_file = getOutputName2(filename, out_folder, sensor, meta)
+    out_file = getOutputName2(filename, outdir, sensor, meta)
 
     if os.path.exists(out_file) and overwrite is False:
-        logging.info("out_file %s exists ; returning empty Dataset" % out_file)
-        return out_file, xr.Dataset()
+        raise FileExistsError("out_file %s exists already")
 
     ancillary_name = config["ancillary"]
     map_model = getAncillary(meta, ancillary_name)
@@ -594,12 +596,12 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         copol_gmf = 'VV'
         crosspol_gmf = 'VH'
     else:
-        logging.warning('for now this processor does not support HH+HV acquisitions\n '
-                        'it wont crash but it will use VV+VH GMF for wind inversion -> wrong hypothesis\n '
-                        '!! WIND SPEED IS NOT USABLE !!')
+        logging.warning('for now this processor does not support entirely HH+HV acquisitions\n '
+                        'it wont crash but it will use HH+VH GMF for wind inversion -> wrong hypothesis\n '
+                        '!! dual WIND SPEED IS NOT USABLE !! But co WIND SPEED IS USABLE !!')
         copol = 'HH'
         crosspol = 'HV'
-        copol_gmf = 'VV'
+        copol_gmf = 'HH'
         crosspol_gmf = 'VH'
 
     #  Step 2 - clean and prepare dataset
@@ -666,7 +668,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
     xr_dataset['ancillary_wind_direction'].attrs[
-        'long_name'] = f'{ancillary_name} Wind direction (meteorological convention)'
+        'long_name'] = f'{ancillary_name} wind direction (meteorological convention)'
     xr_dataset['ancillary_wind_direction'].attrs['standart_name'] = 'wind_direction'
 
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
@@ -677,7 +679,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     xr_dataset['ancillary_wind_speed'].attrs = {}
     xr_dataset['ancillary_wind_speed'].attrs['units'] = 'm s^-1'
     xr_dataset['ancillary_wind_speed'].attrs[
-        'long_name'] = f'{ancillary_name} Wind speed'
+        'long_name'] = f'{ancillary_name} wind speed'
     xr_dataset['ancillary_wind_speed'].attrs['standart_name'] = 'wind_speed'
 
     xr_dataset['ancillary_wind'] = xr.where(xr_dataset['mask'], np.nan,
@@ -734,6 +736,79 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     model_vv = config["GMF_"+copol_gmf+"_NAME"]
     model_vh = config["GMF_"+crosspol_gmf+"_NAME"]
 
+    if ((recalibration) & ("SENTINEL" in sensor_longname)):
+        xr_dataset["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
+            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_new'])))
+        xr_dataset["path_aux_cal_new"] = os.path.basename(os.path.dirname(
+            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_new'])))
+
+        xr_dataset["path_aux_pp1_old"] = os.path.basename(os.path.dirname(
+            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_old'])))
+        xr_dataset["path_aux_cal_old"] = os.path.basename(os.path.dirname(
+            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
+
+    return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config, config_luts
+
+
+def makeL2(filename, outdir, config_path, config_luts_path, overwrite=False, generateCSV=True, resolution='1000m'):
+    """
+    Main function to generate L2 product.
+
+    Parameters
+    ----------
+    filename : str
+        input filename
+    outdir : str
+        output folder
+    config_path : str
+        configuration file path
+    config_luts_path : str
+        configuration LUTs file path
+    overwrite : bool, optional
+        overwrite existing file
+    generateCSV : bool, optional
+        generate CSV file
+    resolution : str, optional
+        working resolution
+
+    Returns
+    -------
+    str
+        output filename
+    xarray.Dataset
+        final dataset
+    """
+
+    xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config, config_luts = preprocess(
+        filename, outdir, config_path, config_luts_path, overwrite, resolution)
+
+    kwargs = {
+        "inc_step_lr": config_luts.pop("inc_step_lr", None),
+        "wpsd_step_lr": config_luts.pop("wspd_step_lr", None),
+        "phi_step_lr": config_luts.pop("phi_step_lr", None),
+        "inc_step": config_luts.pop("inc_step", None),
+        "wpsd_step": config_luts.pop("wspd_step", None),
+        "phi_step": config_luts.pop("phi_step", None),
+        "resolution": config_luts.pop("resolution", None),
+    }
+
+    # need to load gmfs before
+
+    gmfs_impl = [x for x in [model_vv, model_vh] if "gmf_" in x]
+    windspeed.gmfs.GmfModel.activate_gmfs_impl(gmfs_impl)
+    sarwings_luts = [x for x in [model_vv, model_vh]
+                     if x.startswith("sarwing_lut_")]
+    if len(sarwings_luts) > 0:
+        windspeed.register_sarwing_luts(getConf()["sarwing_luts_path"])
+
+    nc_luts = [x for x in [model_vv, model_vh] if x.startswith("nc_lut")]
+
+    if len(nc_luts) > 0:
+        windspeed.register_nc_luts(getConf()["nc_luts_path"])
+
+    if (model_vv == "gmf_cmod7"):
+        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
+
     wind_co, wind_dual, windspeed_cr = inverse(dual_pol,
                                                inc=xr_dataset['incidence'],
                                                sigma0=xr_dataset['sigma0_ocean'].sel(
@@ -742,7 +817,8 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
                                                ancillary_wind=xr_dataset['ancillary_wind'],
                                                dsig_cr=dsig_cross,
                                                model_vv=model_vv,
-                                               model_vh=model_vh)
+                                               model_vh=model_vh,
+                                               ** kwargs)
 
     # windspeed_co
     xr_dataset['windspeed_co'] = np.abs(wind_co)
@@ -755,7 +831,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
 
     # winddir_co
     xr_dataset['winddir_co'] = (
-        90 - (np.angle(-np.conj(wind_co), deg=True)) + xr_dataset.ground_heading) % 360
+        90 - (np.angle(wind_co, deg=True)) + xr_dataset.ground_heading) % 360
     xr_dataset["winddir_co"].attrs["units"] = "degrees_north"
     xr_dataset["winddir_co"].attrs["long_name"] = "Wind direction in meteorological convention, 0=North, 90=East, inverted from model %s (%s)" % (
         model_vv, copol)
@@ -773,7 +849,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         del xr_dataset["windspeed_dual"].attrs['comment']
 
         xr_dataset['winddir_dual'] = (
-            90 - (np.angle(-np.conj(wind_dual), deg=True)) + xr_dataset.ground_heading) % 360
+            90 - (np.angle(wind_dual, deg=True)) + xr_dataset.ground_heading) % 360
         xr_dataset["winddir_dual"].attrs["units"] = "degrees_north"
         xr_dataset["winddir_dual"].attrs["long_name"] = "Wind direction in meteorological convention, 0=North, 90=East inverted from model %s (%s) & %s (%s)" % (
             model_vv, copol, model_vh, crosspol)
@@ -795,7 +871,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of dualpol wind direction"
 
     xr_dataset, encoding = makeL2asOwi(
-        xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, config)
+        xr_dataset, dual_pol, copol, crosspol)
 
     #  add attributes
     firstMeasurementTime = None
@@ -847,16 +923,9 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
         "ancillary_source": xr_dataset.attrs['ancillary_source']
     }
 
-    if ((recalibration) & ("SENTINEL" in sensor_longname)):
-        attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
-            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_new'])))
-        attrs["path_aux_cal_new"] = os.path.basename(os.path.dirname(
-            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_new'])))
-
-        attrs["path_aux_pp1_old"] = os.path.basename(os.path.dirname(
-            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_old'])))
-        attrs["path_aux_cal_old"] = os.path.basename(os.path.dirname(
-            os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
+    for recalib_attrs in ["path_aux_pp1_new", 'path_aux_pp1_old', "path_aux_cal_new", "path_aux_cal_old"]:
+        if recalib_attrs in xr_dataset:
+            attrs[recalib_attrs] = xr_dataset.attrs[recalib_attrs]
 
     # new one to match convention
     _S1_added_attrs = ["product", "ipf", "multi_dataset", "footprint",
@@ -870,6 +939,10 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True,
     for var in ['footprint', 'multidataset']:
         if var in attrs:
             attrs[var] = str(attrs[var])
+
+    # add in kwargs in attrs
+    for key in kwargs:
+        attrs["lut_params_"+key] = "/" if kwargs[key] is None else kwargs[key]
 
     xr_dataset.attrs = attrs
 
