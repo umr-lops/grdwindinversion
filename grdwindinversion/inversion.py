@@ -487,7 +487,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
     return xr_dataset, encoding
 
 
-def preprocess(filename, outdir, config_path, config_luts_path, overwrite=False, resolution='1000m'):
+def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -499,8 +499,6 @@ def preprocess(filename, outdir, config_path, config_luts_path, overwrite=False,
         output folder
     config_path : str
         configuration file path
-    config_luts_path : str
-        configuration LUTs file path
     overwrite : bool, optional
         overwrite existing file
     resolution : str, optional
@@ -514,16 +512,6 @@ def preprocess(filename, outdir, config_path, config_luts_path, overwrite=False,
 
     sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
         filename)
-
-    if os.path.exists(config_luts_path):
-        with open(config_luts_path, 'r') as file:
-            config_luts = yaml.load(
-                file,
-                Loader=yaml.FullLoader
-            )
-    else:
-        raise FileNotFoundError(
-            'config_luts_path do not exists, got %s ' % config_luts_path)
 
     if os.path.exists(config_path):
         with open(config_path, 'r') as file:
@@ -747,10 +735,10 @@ def preprocess(filename, outdir, config_path, config_luts_path, overwrite=False,
         xr_dataset["path_aux_cal_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
 
-    return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config, config_luts
+    return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config
 
 
-def makeL2(filename, outdir, config_path, config_luts_path, overwrite=False, generateCSV=True, resolution='1000m'):
+def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -762,8 +750,6 @@ def makeL2(filename, outdir, config_path, config_luts_path, overwrite=False, gen
         output folder
     config_path : str
         configuration file path
-    config_luts_path : str
-        configuration LUTs file path
     overwrite : bool, optional
         overwrite existing file
     generateCSV : bool, optional
@@ -779,17 +765,17 @@ def makeL2(filename, outdir, config_path, config_luts_path, overwrite=False, gen
         final dataset
     """
 
-    xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config, config_luts = preprocess(
-        filename, outdir, config_path, config_luts_path, overwrite, resolution)
+    xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config = preprocess(
+        filename, outdir, config_path, overwrite, resolution)
 
     kwargs = {
-        "inc_step_lr": config_luts.pop("inc_step_lr", None),
-        "wpsd_step_lr": config_luts.pop("wspd_step_lr", None),
-        "phi_step_lr": config_luts.pop("phi_step_lr", None),
-        "inc_step": config_luts.pop("inc_step", None),
-        "wpsd_step": config_luts.pop("wspd_step", None),
-        "phi_step": config_luts.pop("phi_step", None),
-        "resolution": config_luts.pop("resolution", None),
+        "inc_step_lr": config.pop("inc_step_lr", None),
+        "wpsd_step_lr": config.pop("wspd_step_lr", None),
+        "phi_step_lr": config.pop("phi_step_lr", None),
+        "inc_step": config.pop("inc_step", None),
+        "wpsd_step": config.pop("wspd_step", None),
+        "phi_step": config.pop("phi_step", None),
+        "resolution": config.pop("resolution", None),
     }
 
     # need to load gmfs before

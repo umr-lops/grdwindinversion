@@ -13,9 +13,6 @@ def processor_starting_point():
     parser.add_argument('--input_file', help='input file path', required=True)
     parser.add_argument('--config_file',
                         help='config file path [if not provided will take config file based on input file]', required=True)
-    parser.add_argument('--config_file_luts',
-                        help='config file (luts) path', required=True)
-
     parser.add_argument('--resolution', required=False, default='1000m',
                         help='set resolution ["full" | "1000m" | "xXxm"]')
 
@@ -45,14 +42,14 @@ def processor_starting_point():
     #     raise Exception('this processor only handle acquisitions with VV or VV+VH polarization for now.')
 
     config_file = args.config_file
-    config_file_luts = args.config_file_luts
     out_folder = args.outputdir
     resolution = args.resolution
     if resolution == "full":
         resolution = None
 
-    out_file, outputds = makeL2(input_file, out_folder, config_file, config_file_luts,
+    out_file, outputds = makeL2(input_file, out_folder, config_file,
                                 overwrite=args.overwrite, resolution=resolution, generateCSV=args.no_generate_csv)
+
     logging.info('out_file: %s', out_file)
     logging.info('current memory usage: %s ', get_memory_usage(var='current'))
     logging.info('done in %1.3f min', (time.time() - t0) / 60.)
