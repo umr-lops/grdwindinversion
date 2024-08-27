@@ -103,7 +103,7 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
-    
+
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
     else:
@@ -527,7 +527,8 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
     meta = fct_meta(filename)
 
     no_subdir_cfg = config_base.get("no_subdir", False)
-    out_file = getOutputName2(filename, outdir, sensor, meta, subdir=not no_subdir_cfg)
+    out_file = getOutputName2(filename, outdir, sensor,
+                              meta, subdir=not no_subdir_cfg)
 
     if os.path.exists(out_file) and overwrite is False:
         raise FileExistsError("out_file %s exists already")
@@ -723,14 +724,14 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
     model_vh = config["GMF_"+crosspol_gmf+"_NAME"]
 
     if ((recalibration) & ("SENTINEL" in sensor_longname)):
-        xr_dataset["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_new'])))
-        xr_dataset["path_aux_cal_new"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_cal_new"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_new'])))
 
-        xr_dataset["path_aux_pp1_old"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_pp1_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_old'])))
-        xr_dataset["path_aux_cal_old"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_cal_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
 
     return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config
