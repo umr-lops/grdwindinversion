@@ -49,7 +49,7 @@ def getSensorMetaDataset(filename):
         raise ValueError("must be S1A|S1B|RS2|RCM, got filename %s" % filename)
 
 
-def getOutputName2(input_file, outdir, sensor, meta):
+def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
     """
     Create output filename for L2-GRD product
 
@@ -84,21 +84,14 @@ def getOutputName2(input_file, outdir, sensor, meta):
         match = regex.match(basename_match)
         MISSIONID, BEAM, PRODUCT, RESOLUTION, LEVEL, CLASS, POL, STARTDATE, STOPDATE, ORBIT, TAKEID, PRODID = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
-        out_file = os.path.join(outdir, basename, new_format)
-        return out_file
-
     elif sensor == 'RS2':
         regex = re.compile(
             "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)")
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION}_${LAST}")
         match = regex.match(basename_match)
-
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
-        out_file = os.path.join(outdir, basename, new_format)
-        return out_file
-
     elif sensor == 'RCM':
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
@@ -107,12 +100,15 @@ def getOutputName2(input_file, outdir, sensor, meta):
         match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
-        out_file = os.path.join(outdir, basename, new_format)
-        return out_file
-
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
+
+    if subdir:
+        out_file = os.path.join(outdir, basename, new_format)
+    else:
+        out_file = os.path.join(outdir, new_format)
+    return out_file
 
 
 def getAncillary(meta, ancillary_name='ecmwf'):
@@ -529,7 +525,10 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
 
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
-    out_file = getOutputName2(filename, outdir, sensor, meta)
+
+    no_subdir_cfg = config_base.get("no_subdir", False)
+    out_file = getOutputName2(filename, outdir, sensor,
+                              meta, subdir=not no_subdir_cfg)
 
     if os.path.exists(out_file) and overwrite is False:
         raise FileExistsError("out_file %s exists already")
@@ -725,14 +724,14 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
     model_vh = config["GMF_"+crosspol_gmf+"_NAME"]
 
     if ((recalibration) & ("SENTINEL" in sensor_longname)):
-        xr_dataset["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_new'])))
-        xr_dataset["path_aux_cal_new"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_cal_new"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_new'])))
 
-        xr_dataset["path_aux_pp1_old"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_pp1_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_old'])))
-        xr_dataset["path_aux_cal_old"] = os.path.basename(os.path.dirname(
+        xr_dataset.attrs["path_aux_cal_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
 
     return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config
