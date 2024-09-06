@@ -22,6 +22,13 @@ def get_streaks(xr_dataset, xr_dataset_100):
         Extract wind direction from Koch Method using xsarsea tools.
     """
 
+    # return empy dataArray, waiting for solution
+    return xr.DataArray(data=np.nan * np.ones([len(xr_dataset.coords[dim]) for dim in ['line','sample']]),
+                        dims=['line','sample'],
+                        coords=[xr_dataset.coords[dim] for dim in ['line','sample']])
+    #
+
+    """
     gradients = xsarsea.gradients.Gradients(xr_dataset_100['sigma0_detrend'], windows_sizes=[
                                             1600, 3200], downscales_factors=[1, 2], window_step=1)
 
@@ -66,5 +73,7 @@ def get_streaks(xr_dataset, xr_dataset_100):
         xr_dataset['land_mask'], np.nan, streaks_dir)
     streaks_dir.attrs['comment'] = 'angle in radians, anticlockwise, 0=line'
     streaks_dir.attrs['description'] = 'wind direction estimated from local gradient, and direction ambiguity removed with ancillary wind'
-
+    
     return streaks_dir
+    
+    """

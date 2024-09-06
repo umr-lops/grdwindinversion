@@ -348,6 +348,9 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
     xr_dataset.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
     xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction - owiNesz'
 
+    xr_dataset['owiMask_Nrcs'] = xr_dataset['sigma0_mask'].sel(pol=copol)
+    xr_dataset.owiMask_Nrcs.attrs = xr_dataset.sigma0_mask.attrs
+
     # NESZ & DSIG
     xr_dataset = xr_dataset.assign(
         owiNesz=(['line', 'sample'], xr_dataset.nesz.sel(pol=copol).values))
@@ -403,6 +406,10 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
         xr_dataset.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction - owiNesz_cross'
 
+        xr_dataset['owiMask_Nrcs_cross'] = xr_dataset['sigma0_mask'].sel(
+            pol=crosspol)
+        xr_dataset.owiMask_Nrcs_cross.attrs = xr_dataset.sigma0_mask.attrs
+
         # nesz cross
         xr_dataset = xr_dataset.assign(owiNesz_cross=(
             ['line', 'sample'], xr_dataset.nesz.sel(pol=crosspol).values))  # no flattening
@@ -431,7 +438,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
 
     if add_streaks:
         xr_dataset = xr_dataset.rename({
-            'streaks_dir': 'owiStreaksDirection',
+            'streaks_direction': 'owiStreaksDirection',
         })
 
     #  other variables
@@ -492,7 +499,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
     return xr_dataset, encoding
 
 
-def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=True, resolution='1000m'):
+def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -540,7 +547,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=True,
                               meta, subdir=not no_subdir_cfg)
 
     if os.path.exists(out_file) and overwrite is False:
-        raise FileExistsError("out_file %s exists already")
+        raise FileExistsError("outfile %s already exists" % out_file)
 
     ancillary_name = config["ancillary"]
     map_model = getAncillary(meta, ancillary_name)
@@ -708,17 +715,22 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=True,
     # nrcs processing
     xr_dataset['sigma0_ocean'] = xr.where(xr_dataset['mask'], np.nan,
                                           xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
-    xr_dataset['sigma0_ocean'] = xr.where(
-        xr_dataset['sigma0_ocean'] <= 0, np.nan, xr_dataset['sigma0_ocean'])
-
     xr_dataset['sigma0_ocean'].attrs = xr_dataset['sigma0'].attrs
-    #  we forced it to nan
-    xr_dataset['sigma0_ocean'].attrs['comment'] = "clipped, no values <=0"
+    #  we forced it to 1e-15
+    xr_dataset['sigma0_ocean'].attrs['comment'] = "clipped, no values <=0 ; 1e-15 instread"
+
+    # rajout d'un mask pour les valeurs <=0:
+    xr_dataset['sigma0_mask'] = xr.where(
+        xr_dataset['sigma0_ocean'] <= 0, 1, 0).transpose(*xr_dataset['sigma0'].dims)
+    xr_dataset.sigma0_mask.attrs['valid_range'] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs['flag_values'] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs['flag_meanings'] = 'valid no_valid'
+    xr_dataset['sigma0_ocean'] = xr.where(
+        xr_dataset['sigma0_ocean'] <= 0, 1e-15, xr_dataset['sigma0_ocean'])
 
     xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['mask'], np.nan,
                                               xr_dataset['sigma0_raw'].compute()).transpose(*xr_dataset['sigma0_raw'].dims)
-    xr_dataset['sigma0_ocean_raw'] = xr.where(
-        xr_dataset['sigma0_ocean_raw'] <= 0, np.nan, xr_dataset['sigma0_ocean_raw'])
+
     xr_dataset['sigma0_ocean_raw'].attrs = xr_dataset['sigma0_raw'].attrs
 
     xr_dataset['sigma0_detrend'] = xsarsea.sigma0_detrend(
@@ -790,16 +802,14 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=True,
                                                           structure=np.ones((3, 3), np.uint8), iterations=3)
         xr_dataset_100['sigma0_detrend'] = xr.where(
             xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0'].compute()).transpose(*xr_dataset_100['sigma0'].dims)
-        xr_dataset_100['ancillary_wind'] = (
-            xr_dataset_100.model_U10 + 1j * xr_dataset_100.model_V10) * np.exp(1j * np.deg2rad(xr_dataset_100.ground_heading))
 
-        xr_dataset['steaks_direction'] = get_streaks(
+        xr_dataset['streaks_direction'] = get_streaks(
             xr_dataset, xr_dataset_100)
 
     return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config
 
 
-def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add_streaks=True, resolution='1000m'):
+def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add_streaks=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -901,7 +911,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of dualpol wind direction"
 
     xr_dataset, encoding = makeL2asOwi(
-        xr_dataset, dual_pol, copol, crosspol, add_streaks=False)
+        xr_dataset, dual_pol, copol, crosspol, add_streaks=add_streaks)
 
     #  add attributes
     firstMeasurementTime = None
