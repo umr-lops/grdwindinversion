@@ -15,6 +15,7 @@ from scipy.ndimage import binary_dilation
 import re
 import string
 import os
+from grdwindinversion.streaks import get_streaks
 from grdwindinversion.load_config import getConf
 # optional debug messages
 import logging
@@ -223,7 +224,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
         sigma0 to be inverted for dualpol
     ancillary_wind=: xarray.DataArray (numpy.complex28)
         ancillary wind
-            | (for example ecmwf winds), in **GMF convention** (-np.conj included), 
+            | (for example ecmwf winds), in **GMF convention** (-np.conj included),
     dsig_cr=: float or xarray.DataArray
         parameters used for
 
@@ -280,7 +281,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
     return wind_co, None, None
 
 
-def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
+def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
     """
     Rename xr_dataset variables and attributes to match naming convention.
 
@@ -318,6 +319,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
         'winddir_co': 'owiWindDirection_co',
         'ancillary_wind_speed': 'owiAncillaryWindSpeed',
         'ancillary_wind_direction': 'owiAncillaryWindDirection',
+        'sigma0_detrend': 'owiNrcs_detrend'
     })
 
     if "offboresight" in xr_dataset:
@@ -345,6 +347,9 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
     xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
     xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction - owiNesz'
+
+    xr_dataset['owiMask_Nrcs'] = xr_dataset['sigma0_mask'].sel(pol=copol)
+    xr_dataset.owiMask_Nrcs.attrs = xr_dataset.sigma0_mask.attrs
 
     # NESZ & DSIG
     xr_dataset = xr_dataset.assign(
@@ -391,13 +396,19 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
             'winddir_dual': 'owiWindDirection',
             'windspeed_cross': 'owiWindSpeed_cross',
             'windspeed_dual': 'owiWindSpeed',
+            'sigma0_detrend_cross': 'owiNrcs_detrend_cross'
         })
         # nrcs cross
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
             pol=crosspol)
+
         xr_dataset.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction - owiNesz_cross'
+
+        xr_dataset['owiMask_Nrcs_cross'] = xr_dataset['sigma0_mask'].sel(
+            pol=crosspol)
+        xr_dataset.owiMask_Nrcs_cross.attrs = xr_dataset.sigma0_mask.attrs
 
         # nesz cross
         xr_dataset = xr_dataset.assign(owiNesz_cross=(
@@ -424,6 +435,11 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
                 'comment'] = 'owiNrcs_cross_no_noise_correction ; recalibrated with kersten method'
 
             xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction_recalibrated - owiNesz_cross'
+
+    if add_streaks:
+        xr_dataset = xr_dataset.rename({
+            'streaks_direction': 'owiStreaksDirection',
+        })
 
     #  other variables
 
@@ -483,7 +499,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol):
     return xr_dataset, encoding
 
 
-def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m'):
+def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -503,7 +519,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
     Returns
     -------
     xarray.Dataset
-        final dataset   
+        final dataset
     """
 
     sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
@@ -531,13 +547,13 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
                               meta, subdir=not no_subdir_cfg)
 
     if os.path.exists(out_file) and overwrite is False:
-        raise FileExistsError("out_file %s exists already")
+        raise FileExistsError("outfile %s already exists" % out_file)
 
     ancillary_name = config["ancillary"]
     map_model = getAncillary(meta, ancillary_name)
     if map_model is None:
         raise Exception(
-            f'the weather model is not set `map_model` is None -> you probably don"t have access to f{ancillary_name} archive')
+            f"the weather model is not set `map_model` is None -> you probably don't have access to {ancillary_name} archive")
 
     try:
         if ((recalibration) & ("SENTINEL" in sensor_longname)):
@@ -591,6 +607,25 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
         copol_gmf = 'HH'
         crosspol_gmf = 'VH'
 
+    model_vv = config["GMF_"+copol_gmf+"_NAME"]
+    model_vh = config["GMF_"+crosspol_gmf+"_NAME"]
+
+    # need to load gmfs before inversion
+    gmfs_impl = [x for x in [model_vv, model_vh] if "gmf_" in x]
+    windspeed.gmfs.GmfModel.activate_gmfs_impl(gmfs_impl)
+    sarwings_luts = [x for x in [model_vv, model_vh]
+                     if x.startswith("sarwing_lut_")]
+
+    if len(sarwings_luts) > 0:
+        windspeed.register_sarwing_luts(getConf()["sarwing_luts_path"])
+
+    nc_luts = [x for x in [model_vv, model_vh] if x.startswith("nc_lut")]
+
+    if len(nc_luts) > 0:
+        windspeed.register_nc_luts(getConf()["nc_luts_path"])
+
+    if (model_vv == "gmf_cmod7"):
+        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
     #  Step 2 - clean and prepare dataset
 
     # variables to not keep in the L2
@@ -680,21 +715,32 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
     # nrcs processing
     xr_dataset['sigma0_ocean'] = xr.where(xr_dataset['mask'], np.nan,
                                           xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
-    xr_dataset['sigma0_ocean'] = xr.where(
-        xr_dataset['sigma0_ocean'] <= 0, np.nan, xr_dataset['sigma0_ocean'])
-
     xr_dataset['sigma0_ocean'].attrs = xr_dataset['sigma0'].attrs
-    #  we forced it to nan
-    xr_dataset['sigma0_ocean'].attrs['comment'] = "clipped, no values <=0"
+    #  we forced it to 1e-15
+    xr_dataset['sigma0_ocean'].attrs['comment'] = "clipped, no values <=0 ; 1e-15 instread"
+
+    # rajout d'un mask pour les valeurs <=0:
+    xr_dataset['sigma0_mask'] = xr.where(
+        xr_dataset['sigma0_ocean'] <= 0, 1, 0).transpose(*xr_dataset['sigma0'].dims)
+    xr_dataset.sigma0_mask.attrs['valid_range'] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs['flag_values'] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs['flag_meanings'] = 'valid no_valid'
+    xr_dataset['sigma0_ocean'] = xr.where(
+        xr_dataset['sigma0_ocean'] <= 0, 1e-15, xr_dataset['sigma0_ocean'])
 
     xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['mask'], np.nan,
                                               xr_dataset['sigma0_raw'].compute()).transpose(*xr_dataset['sigma0_raw'].dims)
-    xr_dataset['sigma0_ocean_raw'] = xr.where(
-        xr_dataset['sigma0_ocean_raw'] <= 0, np.nan, xr_dataset['sigma0_ocean_raw'])
+
     xr_dataset['sigma0_ocean_raw'].attrs = xr_dataset['sigma0_raw'].attrs
+
+    xr_dataset['sigma0_detrend'] = xsarsea.sigma0_detrend(
+        xr_dataset.sigma0.sel(pol=copol), xr_dataset.incidence, model=model_vv)
 
     # processing
     if dual_pol:
+
+        xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
+            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_vh)
         if config["apply_flattening"]:
             xr_dataset = xr_dataset.assign(nesz_cross_final=(
                 ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence)))
@@ -720,9 +766,6 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
         sigma0_ocean_cross = None
         dsig_cross = 0.1  # default value set in xsarsea
 
-    model_vv = config["GMF_"+copol_gmf+"_NAME"]
-    model_vh = config["GMF_"+crosspol_gmf+"_NAME"]
-
     if ((recalibration) & ("SENTINEL" in sensor_longname)):
         xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_pp1_new'])))
@@ -734,10 +777,39 @@ def preprocess(filename, outdir, config_path, overwrite=False, resolution='1000m
         xr_dataset.attrs["path_aux_cal_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
 
+    if add_streaks:
+        xsar_dataset_100 = fct_dataset(
+            meta, resolution='100m')
+        xr_dataset_100 = xsar_dataset_100.datatree['measurement'].to_dataset()
+        xr_dataset_100 = xr_dataset_100.rename(map_model)
+
+        # adding sigma0 detrend
+        xr_dataset_100['sigma0_detrend'] = xsarsea.sigma0_detrend(
+            xr_dataset_100.sigma0.sel(pol=copol), xr_dataset_100.incidence, model=model_vv)
+
+        xr_dataset_100['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
+            xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_vh)
+
+        sigma0_detrend_combined = xr.concat(
+            [xr_dataset_100['sigma0_detrend'],
+                xr_dataset_100['sigma0_detrend_cross']],
+            dim='pol'
+        )
+        sigma0_detrend_combined['pol'] = [copol, crosspol]
+
+        xr_dataset_100['sigma0_detrend'] = sigma0_detrend_combined
+        xr_dataset_100.land_mask.values = binary_dilation(xr_dataset_100['land_mask'].values.astype('uint8'),
+                                                          structure=np.ones((3, 3), np.uint8), iterations=3)
+        xr_dataset_100['sigma0_detrend'] = xr.where(
+            xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0'].compute()).transpose(*xr_dataset_100['sigma0'].dims)
+
+        xr_dataset['streaks_direction'] = get_streaks(
+            xr_dataset, xr_dataset_100)
+
     return xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config
 
 
-def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, resolution='1000m'):
+def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add_streaks=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -765,7 +837,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
     """
 
     xr_dataset, dual_pol, copol, crosspol, copol_gmf, crosspol_gmf, model_vv, model_vh, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config = preprocess(
-        filename, outdir, config_path, overwrite, resolution)
+        filename, outdir, config_path, overwrite, add_streaks, resolution)
 
     kwargs = {
         "inc_step_lr": config.pop("inc_step_lr", None),
@@ -776,23 +848,6 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
         "phi_step": config.pop("phi_step", None),
         "resolution": config.pop("resolution", None),
     }
-
-    # need to load gmfs before
-
-    gmfs_impl = [x for x in [model_vv, model_vh] if "gmf_" in x]
-    windspeed.gmfs.GmfModel.activate_gmfs_impl(gmfs_impl)
-    sarwings_luts = [x for x in [model_vv, model_vh]
-                     if x.startswith("sarwing_lut_")]
-    if len(sarwings_luts) > 0:
-        windspeed.register_sarwing_luts(getConf()["sarwing_luts_path"])
-
-    nc_luts = [x for x in [model_vv, model_vh] if x.startswith("nc_lut")]
-
-    if len(nc_luts) > 0:
-        windspeed.register_nc_luts(getConf()["nc_luts_path"])
-
-    if (model_vv == "gmf_cmod7"):
-        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
 
     wind_co, wind_dual, windspeed_cr = inverse(dual_pol,
                                                inc=xr_dataset['incidence'],
@@ -856,7 +911,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
         xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of dualpol wind direction"
 
     xr_dataset, encoding = makeL2asOwi(
-        xr_dataset, dual_pol, copol, crosspol)
+        xr_dataset, dual_pol, copol, crosspol, add_streaks=add_streaks)
 
     #  add attributes
     firstMeasurementTime = None
@@ -909,7 +964,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
     }
 
     for recalib_attrs in ["path_aux_pp1_new", 'path_aux_pp1_old', "path_aux_cal_new", "path_aux_cal_old"]:
-        if recalib_attrs in xr_dataset:
+        if recalib_attrs in xr_dataset.attrs:
             attrs[recalib_attrs] = xr_dataset.attrs[recalib_attrs]
 
     # new one to match convention
