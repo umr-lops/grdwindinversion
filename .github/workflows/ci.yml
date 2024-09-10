@@ -42,12 +42,13 @@ jobs:
           conda install --use-local grdwindinversion -y
 
       # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
+      # WARNING : modify the key if the data is modified !!
       - name: Cache test data
         uses: actions/cache@v2
         with:
           path: ./test_data
           key: test-data-v1
-          restore-keys: test-data-
+          restore-keys: test-data-v1
 
       # Download test data if not already cached
       - name: Download test data

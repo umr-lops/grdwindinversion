@@ -28,6 +28,9 @@ requirements:
     - scipy
     - fsspec
     - aiohttp
+    - xarray-safe-s1
+    - xarray-safe-rcm
+    - xradarsat2
 
 about:
   home: https://github.com/umr-lops/grdwindinversion
