@@ -74,7 +74,7 @@ jobs:
         run: |
           mkdir -p ~/.grdwindinversion
           echo "'ecmwf_0100_1h': ./test_data/ECMWF/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc" > ~/.grdwindinversion/data_config.yaml
-          #echo "'ecmwf_0125_1h': ./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc" >> ~/.grdwindinversion/data_config.yaml
+          echo "'ecmwf_0125_1h': ./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc" >> ~/.grdwindinversion/data_config.yaml
           #echo "'sarwing_luts_path': './test_data/GMFS/v1.6/'" >> ~/.grdwindinversion/data_config.yaml
           #echo "'nc_luts_path': ./test_data/GMFS/nc_luts" >> ~/.grdwindinversion/data_config.yaml
           #echo "'lut_cmod7_path': './test_data/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script'" >> ~/.grdwindinversion/data_config.yaml
