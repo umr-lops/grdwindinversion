@@ -42,7 +42,7 @@ jobs:
         run: |
           eval "$(micromamba shell hook --shell bash)"
           micromamba activate grdwind_env
-          conda install --use-local grdwindinversion -n grdwind_env -y
+          conda install --use-local grdwindinversion -y
 
       # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
       - name: Cache test data
