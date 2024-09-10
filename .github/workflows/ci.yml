@@ -25,7 +25,7 @@ jobs:
           post-cleanup: 'all'
     
       - name: Create environment
-        run: micromamba create -n grdwind_env -y
+        run: micromamba create -n grdwind_env python=3.10 -y
 
       - name: Install build tools
         run: micromamba install -n grdwind_env -c conda-forge conda-build boa -y
