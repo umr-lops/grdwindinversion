@@ -22,7 +22,6 @@ jobs:
         with:
           micromamba-version: '1.5.9-1' # any version from https://github.com/mamba-org/micromamba-releases
           init-shell: bash
-          cache-environment: true
           post-cleanup: 'all'
     
       - name: Create environment
