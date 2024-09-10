@@ -16,7 +16,7 @@ from grdwindinversion.inversion import makeL2
 
 def test_makeL2_generation():
     l1_files = [
-        "./test_data/l1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE"
+        "./test_data/L1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE"
     ]
 
     # l1_files = [
