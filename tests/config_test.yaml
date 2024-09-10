@@ -1,0 +1,45 @@
+no_subdir: True
+S1A:
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_s1_v2"
+    dsig_VH_NAME: "gmf_s1_v2"
+    apply_flattening: True
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
+S1B:
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_s1_v2"
+    dsig_VH_NAME: "gmf_s1_v2"
+    apply_flattening: True
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
+RS2:
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_rs2_v2"
+    dsig_VH_NAME: "gmf_rs2_v2"
+    apply_flattening: False
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
+RCM:
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_rcm_noaa"
+    dsig_VH_NAME: "gmf_s1_v2"
+    apply_flattening: True
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"

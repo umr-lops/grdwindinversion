@@ -1,0 +1,94 @@
+name: CI Workflow for grdwindinversion
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours limit for the job
+
+    steps:
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - uses: mamba-org/setup-micromamba@v1
+        with:
+          micromamba-version: '1.5.9-1' # any version from https://github.com/mamba-org/micromamba-releases
+          init-shell: bash
+          cache-environment: true
+          post-cleanup: 'all'
+    
+      - name: Create environment
+        run: micromamba create -n grdwind_env -y
+
+      - name: Install build tools
+        run: micromamba install -n grdwind_env -c conda-forge conda-build boa -y
+
+      - name: Build package
+        run: |
+          cd recipe
+          micromamba activate grdwind_env
+          conda mambabuild .
+
+      # Install the built package into the environment
+      - name: Install the built package
+        run: conda install --use-local grdwindinversion -n grdwind_env -y
+
+      # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
+      - name: Cache test data
+        uses: actions/cache@v2
+        with:
+          path: ./test_data
+          key: test-data-v1
+          restore-keys: test-data-
+
+      # Download test data if not already cached
+      - name: Download L1 SAFE files
+        if: steps.cache.outputs.cache-hit != 'true'  # Only download if cache miss
+        run: |
+          mkdir -p ./test_data/
+          wget https://cloud.ifremer.fr/index.php/s/ExLQ2TnYAqozPWE/download -O /tmp/ecmwf.zip
+          unzip /tmp/ecmwf.zip -d ./test_data/
+          wget https://cloud.ifremer.fr/index.php/s/kRgdOOPsjoZieZR/download -O /tmp/l1.zip
+          unzip /tmp/l1.zip -d ./test_data/
+        timeout-minutes: 200  # Adjust depending on the size of your data
+
+      # Set up xsar configuration 
+      - name: Setup xsar configuration
+        run: |
+          mkdir -p ~/.xsar
+          echo "data_dir: /tmp" > ~/.xsar/config.yaml
+          echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yaml
+          echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv"
+
+      # Set up grdwindinversion configuration 
+      - name: Setup grdwindinversion configuration
+        run: |
+          mkdir -p ~/.grdwindinversion
+          echo "'ecmwf_0100_1h': ./test_data/ECMWF/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc" > ~/.grdwindinversion/data_config.yaml
+          #echo "'ecmwf_0125_1h': ./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc" >> ~/.grdwindinversion/data_config.yaml
+          #echo "'sarwing_luts_path': './test_data/GMFS/v1.6/'" >> ~/.grdwindinversion/data_config.yaml
+          #echo "'nc_luts_path': ./test_data/GMFS/nc_luts" >> ~/.grdwindinversion/data_config.yaml
+          #echo "'lut_cmod7_path': './test_data/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script'" >> ~/.grdwindinversion/data_config.yaml
+          #echo "'lut_ms1ahw_path': './test_data/GMFS/v1.6/GMF_cmodms1ahw'" >> ~/.grdwindinversion/data_config.yaml
+
+      # Run the tests
+      - name: Run tests
+        run: |
+          micromamba activate grdwind_env
+          pytest
+
+      # Optionally, upload test artifacts (NetCDF files or logs) if needed
+      #- name: Upload test artifacts
+      #  if: failure()  # Only upload on failure
+      #  uses: actions/upload-artifact@v2
+      #  with:
+      #    name: test-output
+      #    path: ./test_output/
