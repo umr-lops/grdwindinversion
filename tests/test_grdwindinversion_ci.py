@@ -16,7 +16,9 @@ from grdwindinversion.inversion import makeL2
 
 def test_makeL2_generation():
     l1_files = [
-        "./test_data/L1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE"
+        "./test_data/L1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE",
+        "./test_data/L1/RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD",
+        "./test_data/L1/RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF"
     ]
 
     # l1_files = [
@@ -39,11 +41,12 @@ def test_makeL2_generation():
             overwrite=True,  # Set to True to ensure a clean run
             generateCSV=False,  # Disable CSV generation for now
             add_streaks=False,
-            resolution="1000m",
+            resolution="10000m",
         )
 
         # Check if the output file (NetCDF) is generated
-        assert os.path.exists(output_nc_file), f"NetCDF output file not created for {f}"
+        assert os.path.exists(
+            output_nc_file), f"NetCDF output file not created for {f}"
 
         # Optionally, check the dataset has content
         assert dataset is not None, f"No dataset generated for {f}"
