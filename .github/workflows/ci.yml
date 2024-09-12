@@ -47,8 +47,8 @@ jobs:
               uses: actions/cache@v2
               with:
                   path: ./test_data
-                  key: test-data-v2
-                  restore-keys: test-data-v2
+                  key: test-data-v3
+                  restore-keys: test-data-v3
 
             # Download test data if not already cached
             - name: Download test data
