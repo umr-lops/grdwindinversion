@@ -13,10 +13,10 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 360 # 6 hours limit for the job
 
-        steps:
-            # Checkout the code
-            - name: Checkout code
-              uses: actions/checkout@v2
+    steps:
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v4
 
             - uses: mamba-org/setup-micromamba@v1
               with:
@@ -41,14 +41,15 @@ jobs:
                   micromamba activate grdwind_env
                   conda install --use-local grdwindinversion -y
 
-            # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
-            # WARNING : modify the key if the data is modified !!
-            - name: Cache test data
-              uses: actions/cache@v2
-              with:
-                  path: ./test_data
-                  key: test-data-v3
-                  restore-keys: test-data-v3
+      # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
+      # WARNING : modify the key if the data is modified !!
+      - name: Cache test data
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: ./test_data
+          key: test-data-v3
+          restore-keys: test-data-v3
 
             # Download test data if not already cached
             - name: Download test data
