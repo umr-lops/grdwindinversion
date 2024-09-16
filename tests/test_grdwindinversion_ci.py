@@ -41,7 +41,7 @@ def test_makeL2_generation():
             overwrite=True,  # Set to True to ensure a clean run
             generateCSV=False,  # Disable CSV generation for now
             add_streaks=False,
-            resolution="10000m",
+            resolution="1000m",
         )
 
         # Check if the output file (NetCDF) is generated
