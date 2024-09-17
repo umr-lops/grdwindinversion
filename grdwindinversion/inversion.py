@@ -713,7 +713,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
     xr_dataset['ancillary_wind_direction'].attrs[
-        'long_name'] = f'{ancillary_name} wind direction (meteorological convention)'
+        'long_name'] = f'{ancillary_name} wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east'
     xr_dataset['ancillary_wind_direction'].attrs['standart_name'] = 'wind_direction'
 
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
@@ -869,6 +869,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
     copol_gmf = config["l2_params"]["copol_gmf"]
     crosspol_gmf = config["l2_params"]["crosspol_gmf"]
     dual_pol = config["l2_params"]["dual_pol"]
+    ancillary_name = config["ancillary"]
 
     kwargs = {
         "inc_step_lr": config.pop("inc_step_lr", None),
@@ -939,6 +940,8 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         xr_dataset['ancillary_wind_direction'] = xsarsea.dir_meteo_to_oceano(
             xr_dataset['ancillary_wind_direction'])
         xr_dataset['ancillary_wind_direction'].attrs = attrs
+        xr_dataset['ancillary_wind_direction'].attrs[
+            "long_name"] = f"{ancillary_name} wind direction in oceanographic convention (clockwise, to), ex: 0°=to north, 90°=to east"
 
     xr_dataset, encoding = makeL2asOwi(
         xr_dataset, dual_pol, copol, crosspol, add_streaks=add_streaks)
