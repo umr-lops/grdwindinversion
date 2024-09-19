@@ -632,6 +632,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     config["l2_params"]["crosspol_gmf"] = crosspol_gmf
     config["l2_params"]["model_vv"] = model_vv
     config["l2_params"]["model_vh"] = model_vh
+    config["sensor_longname"] = sensor_longname
 
     # need to load gmfs before inversion
     gmfs_impl = [x for x in [model_vv, model_vh] if "gmf_" in x]
@@ -779,15 +780,13 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset.nesz_cross_final.attrs['long_name'] = 'Noise Equivalent SigmaNaught'
 
         # dsig
-        sigma0_ocean_cross = xr_dataset['sigma0_ocean'].sel(pol=crosspol)
         xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
-                                                      sigma0_ocean_cross, xr_dataset.nesz_cross_final)
+                                                      xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset.nesz_cross_final)
 
         xr_dataset.dsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
-        dsig_cross = xr_dataset.dsig_cross
-    else:
-        sigma0_ocean_cross = None
-        dsig_cross = 0.1  # default value set in xsarsea
+        xr_dataset.dsig_cross.attrs['formula_used'] = config["dsig_" +
+                                                             crosspol_gmf+"_NAME"]
+        xr_dataset.dsig_cross.attrs['apply_flattening'] = config["apply_flattening"]
 
     if ((recalibration) & ("SENTINEL" in sensor_longname)):
         xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
@@ -810,17 +809,19 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset_100['sigma0_detrend'] = xsarsea.sigma0_detrend(
             xr_dataset_100.sigma0.sel(pol=copol), xr_dataset_100.incidence, model=model_vv)
 
-        xr_dataset_100['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
-            xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_vh)
+        if dual_pol:
+            xr_dataset_100['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
+                xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_vh)
 
-        sigma0_detrend_combined = xr.concat(
-            [xr_dataset_100['sigma0_detrend'],
-                xr_dataset_100['sigma0_detrend_cross']],
-            dim='pol'
-        )
-        sigma0_detrend_combined['pol'] = [copol, crosspol]
+            sigma0_detrend_combined = xr.concat(
+                [xr_dataset_100['sigma0_detrend'],
+                    xr_dataset_100['sigma0_detrend_cross']],
+                dim='pol'
+            )
+            sigma0_detrend_combined['pol'] = [copol, crosspol]
 
-        xr_dataset_100['sigma0_detrend'] = sigma0_detrend_combined
+            xr_dataset_100['sigma0_detrend'] = sigma0_detrend_combined
+
         xr_dataset_100.land_mask.values = binary_dilation(xr_dataset_100['land_mask'].values.astype('uint8'),
                                                           structure=np.ones((3, 3), np.uint8), iterations=3)
         xr_dataset_100['sigma0_detrend'] = xr.where(
@@ -829,7 +830,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset['streaks_direction'] = get_streaks(
             xr_dataset, xr_dataset_100)
 
-    return xr_dataset, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config
+    return xr_dataset, out_file, config
 
 
 def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add_streaks=False, resolution='1000m'):
@@ -859,7 +860,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         final dataset
     """
 
-    xr_dataset, sigma0_ocean_cross, dsig_cross, sensor_longname, out_file, config = preprocess(
+    xr_dataset, out_file, config = preprocess(
         filename, outdir, config_path, overwrite, add_streaks, resolution)
 
     model_vv = config["l2_params"]["model_vv"]
@@ -870,6 +871,14 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
     crosspol_gmf = config["l2_params"]["crosspol_gmf"]
     dual_pol = config["l2_params"]["dual_pol"]
     ancillary_name = config["ancillary"]
+    sensor_longname = config["sensor_longname"]
+
+    if dual_pol:
+        sigma0_ocean_cross = xr_dataset['sigma0_ocean'].sel(pol=crosspol)
+        dsig_cross = xr_dataset['dsig_cross']
+    else:
+        sigma0_ocean_cross = None
+        dsig_cross = 0.1  # default value set in xsarsea
 
     kwargs = {
         "inc_step_lr": config.pop("inc_step_lr", None),
@@ -892,7 +901,8 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
                                                model_vh=model_vh,
                                                ** kwargs)
     wind_co.compute()
-    wind_dual.compute()
+    if dual_pol and wind_dual is not None:
+        wind_dual.compute()
 
     # windspeed_co
     xr_dataset['windspeed_co'] = np.abs(wind_co)
@@ -905,7 +915,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
     # winddir_co
     xr_dataset['winddir_co'] = transform_winddir(
-        wind_co, xr_dataset.ground_heading, convention=config["winddir_convention"])
+        wind_co, xr_dataset.ground_heading, winddir_convention=config["winddir_convention"])
     xr_dataset['winddir_co'].attrs["model"] = "%s (%s)" % (model_vv, copol)
 
     # windspeed_dual / windspeed_cr / /winddir_dual / winddir_cr
@@ -919,7 +929,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         del xr_dataset["windspeed_dual"].attrs['comment']
 
         xr_dataset['winddir_dual'] = transform_winddir(
-            wind_dual, xr_dataset.ground_heading, convention=config["winddir_convention"])
+            wind_dual, xr_dataset.ground_heading, winddir_convention=config["winddir_convention"])
         xr_dataset['winddir_dual'].attrs["model"] = "%s (%s) & %s (%s)" % (
             model_vv, copol, model_vh, crosspol)
 
