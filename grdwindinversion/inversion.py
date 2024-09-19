@@ -546,13 +546,13 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     no_subdir_cfg = config_base.get("no_subdir", False)
     config["no_subdir"] = no_subdir_cfg
 
-    if "wind_convention" in config_base:
-        wind_convention = config_base["wind_convention"]
+    if "winddir_convention" in config_base:
+        winddir_convention = config_base["winddir_convention"]
     else:
-        wind_convention = "meteorological"
+        winddir_convention = "meteorological"
         logging.warning(
-            f"Using meteorological convention because wind_convention was not found in config.")
-    config["wind_convention"] = wind_convention
+            f'Using meteorological convention because "winddir_convention" was not found in config.')
+    config["winddir_convention"] = winddir_convention
 
     # creating a dictionnary of parameters
     config["l2_params"] = {}
@@ -905,7 +905,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
     # winddir_co
     xr_dataset['winddir_co'] = transform_winddir(
-        wind_co, xr_dataset.ground_heading, convention=config["wind_convention"])
+        wind_co, xr_dataset.ground_heading, convention=config["winddir_convention"])
     xr_dataset['winddir_co'].attrs["model"] = "%s (%s)" % (model_vv, copol)
 
     # windspeed_dual / windspeed_cr / /winddir_dual / winddir_cr
@@ -919,7 +919,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         del xr_dataset["windspeed_dual"].attrs['comment']
 
         xr_dataset['winddir_dual'] = transform_winddir(
-            wind_dual, xr_dataset.ground_heading, convention=config["wind_convention"])
+            wind_dual, xr_dataset.ground_heading, convention=config["winddir_convention"])
         xr_dataset['winddir_dual'].attrs["model"] = "%s (%s) & %s (%s)" % (
             model_vv, copol, model_vh, crosspol)
 
@@ -935,7 +935,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         xr_dataset['winddir_cross'].attrs = xr_dataset['winddir_dual'].attrs
         xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of dualpol wind direction"
 
-    if config["wind_convention"] == "oceanographic":
+    if config["winddir_convention"] == "oceanographic":
         attrs = xr_dataset['ancillary_wind_direction'].attrs
         xr_dataset['ancillary_wind_direction'] = xsarsea.dir_meteo_to_oceano(
             xr_dataset['ancillary_wind_direction'])
@@ -994,7 +994,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         "owiWindSpeedSrc": "owiWindSpeed",
         "owiWindDirectionSrc": "/",
         "ancillary_source": xr_dataset.attrs['ancillary_source'],
-        "wind_convention": config["wind_convention"]
+        "winddir_convention": config["winddir_convention"]
     }
 
     for recalib_attrs in ["path_aux_pp1_new", 'path_aux_pp1_old', "path_aux_cal_new", "path_aux_cal_old"]:
@@ -1036,7 +1036,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
     return out_file, xr_dataset
 
 
-def transform_winddir(wind_cpx, ground_heading, convention='meteorological'):
+def transform_winddir(wind_cpx, ground_heading, winddir_convention='meteorological'):
     """
 
     Parameters
@@ -1047,30 +1047,30 @@ def transform_winddir(wind_cpx, ground_heading, convention='meteorological'):
     ground_heading : xr.DataArray
         heading angle in degrees
 
-    convention : str
-        convention to use, either 'meteorological' or 'oceanographic'
+    winddir_convention : str
+        wind direction convention to use, either 'meteorological' or 'oceanographic'
 
     Returns
     -------
         xr.DataArray
         wind direction in degrees in the selected convention with appropriate long_name attribute
     """
-    # to meteo convention
+    # to meteo winddir_convention
     dataArray = xsarsea.dir_sample_to_meteo(
         np.angle(wind_cpx, deg=True), ground_heading)
     long_name = "Wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east"
 
-    if convention == "meteorological":
+    if winddir_convention == "meteorological":
         # do nothing
         pass
-    elif convention == "oceanographic":
-        # to oceano convention
+    elif winddir_convention == "oceanographic":
+        # to oceano winddir_convention
         dataArray = xsarsea.dir_meteo_to_oceano(dataArray)
         long_name = "Wind direction in oceanographic convention (clockwise, to), ex: 0°=to north, 90°=to east"
     else:
         #  warning
         logging.warning(
-            f"convention {convention} is not supported, using meteorological",)
+            f"wind direction convention {winddir_convention} is not supported, using meteorological",)
         long_name = "Wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east"
 
     dataArray = xsarsea.dir_to_360(dataArray)
