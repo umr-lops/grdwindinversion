@@ -16,6 +16,7 @@ import re
 import string
 import os
 from grdwindinversion.streaks import get_streaks
+from grdwindinversion.utils import check_incidence_range
 from grdwindinversion.load_config import getConf
 # optional debug messages
 import logging
@@ -208,7 +209,7 @@ def getAncillary(meta, ancillary_name='ecmwf'):
                          ancillary_name)
 
 
-def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_vv, model_vh, **kwargs):
+def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_co, model_cross, **kwargs):
     """
     Invert sigma0 to retrieve wind using model (lut or gmf).
 
@@ -229,9 +230,9 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
         parameters used for
 
             | `Jsig_cr=((sigma0_gmf - sigma0) / dsig_cr) ** 2`
-    model_vv=: str
+    model_co=: str
         model to use for VV or HH polarization.
-    model_vh=: str
+    model_cross=: str
         model to use for VH or HV polarization.
 
     Returns
@@ -248,12 +249,12 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
 
     list_mods = windspeed.available_models().index.tolist(
     ) + windspeed.available_models().alias.tolist() + [None]
-    if model_vv not in list_mods:
+    if model_co not in list_mods:
         raise ValueError(
-            f"model_vv {model_vv} not in windspeed.available_models() : not going further")
-    if model_vh not in list_mods:
+            f"model_co {model_co} not in windspeed.available_models() : not going further")
+    if model_cross not in list_mods:
         raise ValueError(
-            f"model_vh {model_vh} not in windspeed.available_models() : not going further")
+            f"model_cross {model_cross} not in windspeed.available_models() : not going further")
 
     winds = windspeed.invert_from_model(
         inc,
@@ -261,7 +262,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
         sigma0_dual,
         ancillary_wind=ancillary_wind,
         dsig_cr=dsig_cr,
-        model=(model_vv, model_vh),
+        model=(model_co, model_cross),
         **kwargs)
 
     if dual_pol:
@@ -271,7 +272,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_v
             inc.values,
             sigma0_dual.values,
             dsig_cr=dsig_cr.values,
-            model=model_vh,
+            model=model_cross,
             **kwargs)
 
         return wind_co, wind_dual, wind_cross
@@ -621,8 +622,8 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         copol_gmf = 'HH'
         crosspol_gmf = 'VH'
 
-    model_vv = config["GMF_"+copol_gmf+"_NAME"]
-    model_vh = config["GMF_"+crosspol_gmf+"_NAME"]
+    model_co = config["GMF_"+copol_gmf+"_NAME"]
+    model_cross = config["GMF_"+crosspol_gmf+"_NAME"]
 
     # register paramaters in config
     config["l2_params"]["dual_pol"] = dual_pol
@@ -630,25 +631,25 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     config["l2_params"]["crosspol"] = crosspol
     config["l2_params"]["copol_gmf"] = copol_gmf
     config["l2_params"]["crosspol_gmf"] = crosspol_gmf
-    config["l2_params"]["model_vv"] = model_vv
-    config["l2_params"]["model_vh"] = model_vh
+    config["l2_params"]["model_co"] = model_co
+    config["l2_params"]["model_cross"] = model_cross
     config["sensor_longname"] = sensor_longname
 
     # need to load gmfs before inversion
-    gmfs_impl = [x for x in [model_vv, model_vh] if "gmf_" in x]
+    gmfs_impl = [x for x in [model_co, model_cross] if "gmf_" in x]
     windspeed.gmfs.GmfModel.activate_gmfs_impl(gmfs_impl)
-    sarwings_luts = [x for x in [model_vv, model_vh]
+    sarwings_luts = [x for x in [model_co, model_cross]
                      if x.startswith("sarwing_lut_")]
 
     if len(sarwings_luts) > 0:
         windspeed.register_sarwing_luts(getConf()["sarwing_luts_path"])
 
-    nc_luts = [x for x in [model_vv, model_vh] if x.startswith("nc_lut")]
+    nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
     if len(nc_luts) > 0:
         windspeed.register_nc_luts(getConf()["nc_luts_path"])
 
-    if (model_vv == "gmf_cmod7"):
+    if (model_co == "gmf_cmod7"):
         windspeed.register_cmod7(getConf()["lut_cmod7_path"])
     #  Step 2 - clean and prepare dataset
 
@@ -758,13 +759,13 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     xr_dataset['sigma0_ocean_raw'].attrs = xr_dataset['sigma0_raw'].attrs
 
     xr_dataset['sigma0_detrend'] = xsarsea.sigma0_detrend(
-        xr_dataset.sigma0.sel(pol=copol), xr_dataset.incidence, model=model_vv)
+        xr_dataset.sigma0.sel(pol=copol), xr_dataset.incidence, model=model_co)
 
     # processing
     if dual_pol:
 
         xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
-            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_vh)
+            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
         if config["apply_flattening"]:
             xr_dataset = xr_dataset.assign(nesz_cross_final=(
                 ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence)))
@@ -807,11 +808,11 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
 
         # adding sigma0 detrend
         xr_dataset_100['sigma0_detrend'] = xsarsea.sigma0_detrend(
-            xr_dataset_100.sigma0.sel(pol=copol), xr_dataset_100.incidence, model=model_vv)
+            xr_dataset_100.sigma0.sel(pol=copol), xr_dataset_100.incidence, model=model_co)
 
         if dual_pol:
             xr_dataset_100['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
-                xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_vh)
+                xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_cross)
 
             sigma0_detrend_combined = xr.concat(
                 [xr_dataset_100['sigma0_detrend'],
@@ -863,8 +864,8 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
     xr_dataset, out_file, config = preprocess(
         filename, outdir, config_path, overwrite, add_streaks, resolution)
 
-    model_vv = config["l2_params"]["model_vv"]
-    model_vh = config["l2_params"]["model_vh"]
+    model_co = config["l2_params"]["model_co"]
+    model_cross = config["l2_params"]["model_cross"]
     copol = config["l2_params"]["copol"]
     crosspol = config["l2_params"]["crosspol"]
     copol_gmf = config["l2_params"]["copol_gmf"]
@@ -890,6 +891,11 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         "resolution": config.pop("resolution", None),
     }
 
+    logging.info("Checking incidence range within LUTS incidence range")
+    #  warning if incidence is out of lut incidence range
+    inc_check_co, inc_check_cross = check_incidence_range(
+        xr_dataset['incidence'], [model_co, model_cross], **kwargs)
+
     wind_co, wind_dual, windspeed_cr = inverse(dual_pol,
                                                inc=xr_dataset['incidence'],
                                                sigma0=xr_dataset['sigma0_ocean'].sel(
@@ -897,18 +903,16 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
                                                sigma0_dual=sigma0_ocean_cross,
                                                ancillary_wind=xr_dataset['ancillary_wind'],
                                                dsig_cr=dsig_cross,
-                                               model_vv=model_vv,
-                                               model_vh=model_vh,
+                                               model_co=model_co,
+                                               model_cross=model_cross,
                                                ** kwargs)
     wind_co.compute()
-    if dual_pol and wind_dual is not None:
-        wind_dual.compute()
 
     # windspeed_co
     xr_dataset['windspeed_co'] = np.abs(wind_co)
     xr_dataset["windspeed_co"].attrs["units"] = "m.s⁻1"
     xr_dataset["windspeed_co"].attrs["long_name"] = "Wind speed inverted from model %s (%s)" % (
-        model_vv, copol)
+        model_co, copol)
     xr_dataset["windspeed_co"].attrs["standart_name"] = "wind_speed"
     xr_dataset["windspeed_co"].attrs["model"] = wind_co.attrs["model"]
     del xr_dataset["windspeed_co"].attrs['comment']
@@ -916,14 +920,15 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
     # winddir_co
     xr_dataset['winddir_co'] = transform_winddir(
         wind_co, xr_dataset.ground_heading, winddir_convention=config["winddir_convention"])
-    xr_dataset['winddir_co'].attrs["model"] = "%s (%s)" % (model_vv, copol)
+    xr_dataset['winddir_co'].attrs["model"] = "%s (%s)" % (model_co, copol)
 
     # windspeed_dual / windspeed_cr / /winddir_dual / winddir_cr
-    if dual_pol:
+    if dual_pol and wind_dual is not None:
+        wind_dual.compute()
         xr_dataset['windspeed_dual'] = np.abs(wind_dual)
         xr_dataset["windspeed_dual"].attrs["units"] = "m.s⁻1"
         xr_dataset["windspeed_dual"].attrs["long_name"] = "Wind speed inverted from model %s (%s) & %s (%s)" % (
-            model_vv, copol, model_vh, crosspol)
+            model_co, copol, model_cross, crosspol)
         xr_dataset["windspeed_dual"].attrs["standart_name"] = "wind_speed"
         xr_dataset["windspeed_dual"].attrs["model"] = wind_dual.attrs["model"]
         del xr_dataset["windspeed_dual"].attrs['comment']
@@ -931,15 +936,15 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         xr_dataset['winddir_dual'] = transform_winddir(
             wind_dual, xr_dataset.ground_heading, winddir_convention=config["winddir_convention"])
         xr_dataset['winddir_dual'].attrs["model"] = "%s (%s) & %s (%s)" % (
-            model_vv, copol, model_vh, crosspol)
+            model_co, copol, model_cross, crosspol)
 
         xr_dataset = xr_dataset.assign(
             windspeed_cross=(['line', 'sample'], windspeed_cr))
         xr_dataset["windspeed_cross"].attrs["units"] = "m.s⁻1"
         xr_dataset["windspeed_cross"].attrs["long_name"] = "Wind Speed inverted from model %s (%s)" % (
-            model_vh, crosspol)
+            model_cross, crosspol)
         xr_dataset["windspeed_cross"].attrs["standart_name"] = "wind_speed"
-        xr_dataset["windspeed_cross"].attrs["model"] = "%s" % (model_vh)
+        xr_dataset["windspeed_cross"].attrs["model"] = "%s" % (model_cross)
 
         xr_dataset['winddir_cross'] = xr_dataset['winddir_dual'].copy()
         xr_dataset['winddir_cross'].attrs = xr_dataset['winddir_dual'].attrs
@@ -1004,7 +1009,9 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         "owiWindSpeedSrc": "owiWindSpeed",
         "owiWindDirectionSrc": "/",
         "ancillary_source": xr_dataset.attrs['ancillary_source'],
-        "winddir_convention": config["winddir_convention"]
+        "winddir_convention": config["winddir_convention"],
+        "incidence_within_lut_copol_incidence_range": str(inc_check_co),
+        "incidence_within_lut_crosspol_incidence_range": str(inc_check_cross)
     }
 
     for recalib_attrs in ["path_aux_pp1_new", 'path_aux_pp1_old', "path_aux_cal_new", "path_aux_cal_old"]:

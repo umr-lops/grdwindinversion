@@ -1,5 +1,5 @@
 from grdwindinversion.inversion import makeL2
-from grdwindinversion.utils import get_memory_usage
+from grdwindinversion.utils_memory import get_memory_usage
 import grdwindinversion
 import time
 import logging
