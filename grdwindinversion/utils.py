@@ -63,7 +63,20 @@ def get_pol_ratio_name(model_co):
     model = xsarsea.windspeed.get_model(model_co)
     if model.pol == 'HH':
         try:
-            return model.model
+            import re
+
+            def check_format(s):
+                pattern = r'^([a-zA-Z0-9]+)_R(high|low)_hh_([a-zA-Z0-9_]+)$'
+                match = re.match(pattern, s)
+                if match:
+                    vvgmf, res, polrationame = match.groups()
+                    return polrationame
+                else:
+                    logging.warn(
+                        f"String format is not correct for polarization ratio name = {s}\nReturning '/'")
+                    return "/"
+            get_pol_ratio_name = check_format(model_co)
+            return get_pol_ratio_name
         except AttributeError:
             return "not_written_in_lut"
     else:

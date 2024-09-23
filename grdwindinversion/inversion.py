@@ -97,7 +97,6 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
     elif sensor == 'RCM':
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
-        RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM_MODE}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
         match = regex.match(basename_match)
