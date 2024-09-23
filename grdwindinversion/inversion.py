@@ -787,7 +787,8 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset.dsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
         xr_dataset.dsig_cross.attrs['formula_used'] = config["dsig_" +
                                                              crosspol_gmf+"_NAME"]
-        xr_dataset.dsig_cross.attrs['apply_flattening'] = config["apply_flattening"]
+        xr_dataset.dsig_cross.attrs['apply_flattening'] = str(
+            config["apply_flattening"])
 
     if ((recalibration) & ("SENTINEL" in sensor_longname)):
         xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(os.path.dirname(
@@ -1011,25 +1012,29 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         "ancillary_source": xr_dataset.attrs['ancillary_source'],
         "winddir_convention": config["winddir_convention"],
         "incidence_within_lut_copol_incidence_range": str(inc_check_co),
-        "incidence_within_lut_crosspol_incidence_range": str(inc_check_cross)
+        "incidence_within_lut_crosspol_incidence_range": str(inc_check_cross),
+        "swath": xr_dataset.attrs['swath'],
+        "footprint": xr_dataset.attrs['footprint'],
+        "coverage": xr_dataset.attrs['coverage'],
+
     }
 
     for recalib_attrs in ["path_aux_pp1_new", 'path_aux_pp1_old', "path_aux_cal_new", "path_aux_cal_old"]:
         if recalib_attrs in xr_dataset.attrs:
             attrs[recalib_attrs] = xr_dataset.attrs[recalib_attrs]
 
-    # new one to match convention
-    _S1_added_attrs = ["product", "ipf", "multi_dataset", "footprint",
-                       "coverage", "orbit_pass", "platform_heading"]
-    _RS2_added_attrs = ["passDirection", "swath", "footprint", "coverage"]
-    _RCM_added_attrs = ["swath", "footprint", "coverage", "productId",]
+    for arg in ["passDirection", "orbit_pass"]:
+        if arg in xr_dataset.attrs:
+            attrs["passDirection"] = xr_dataset.attrs[arg]
 
-    for sup_attr in _S1_added_attrs + _RS2_added_attrs + _RCM_added_attrs:
+    _S1_added_attrs = ["ipf", "platform_heading"]
+    _RCM_added_attrs = ["productId"]
+
+    for sup_attr in _S1_added_attrs + _RCM_added_attrs:
         if sup_attr in xr_dataset.attrs:
             attrs[sup_attr] = xr_dataset.attrs[sup_attr]
-    for var in ['footprint', 'multidataset']:
-        if var in attrs:
-            attrs[var] = str(attrs[var])
+
+    attrs['footprint'] = str(attrs['footprint'])
 
     # add in kwargs in attrs
     for key in kwargs:
