@@ -39,7 +39,7 @@ jobs:
             run: |
                 eval "$(micromamba shell hook --shell bash)"
                 micromamba activate grdwind_env
-                conda install --use-local grdwindinversion -y
+                conda install --use-local grdwindinversion -y -c conda-forge -c tcevaer
 
           # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
           # WARNING : modify the key if the data is modified !!
