@@ -21,25 +21,26 @@ jobs:
           - uses: mamba-org/setup-micromamba@v1
             with:
                 micromamba-version: "1.5.9-1" # any version from https://github.com/mamba-org/micromamba-releases
+                channels: tcevaer, conda-forge, defaults
                 init-shell: bash
                 post-cleanup: "all"
 
           - name: Create environment and install tools
-            run: micromamba create -n grdwind_env pytest conda-build boa python=3.10 -y
+            run: micromamba create -n grdwind_env pytest conda-build boa python=3.10 -y -c tcevaer -c conda-forge
 
           - name: Build package
             run: |
                 cd recipe
                 eval "$(micromamba shell hook --shell bash)"
                 micromamba activate grdwind_env
-                conda mambabuild . -c conda-forge -c tcevaer
+                conda mambabuild . -c tcevaer -c conda-forge
 
           # Install the built package into the environment
           - name: Install the built package
             run: |
                 eval "$(micromamba shell hook --shell bash)"
                 micromamba activate grdwind_env
-                conda install --use-local grdwindinversion -y -c conda-forge -c tcevaer
+                conda install --use-local grdwindinversion -y -c tcevaer -c conda-forge
 
           # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
           # WARNING : modify the key if the data is modified !!
