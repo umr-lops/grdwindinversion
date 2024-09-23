@@ -5,6 +5,9 @@ on:
     workflows: ["Upload package to PyPI"]
     types:
       - completed
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build-and-upload-conda-package:
