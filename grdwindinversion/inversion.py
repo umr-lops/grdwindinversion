@@ -16,7 +16,7 @@ import re
 import string
 import os
 from grdwindinversion.streaks import get_streaks
-from grdwindinversion.utils import check_incidence_range
+from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name
 from grdwindinversion.load_config import getConf
 # optional debug messages
 import logging
@@ -97,11 +97,12 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
     elif sensor == 'RCM':
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
+        RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
         template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
+            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM_MODE}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
         match = regex.match(basename_match)
-        MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
-        new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        MISSIONID, DATA1, DATA2, DATA3, BEAM_MODE, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
+        new_format = f"{MISSIONID.lower()}-{BEAM_MODE.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
@@ -991,7 +992,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         "xsar_version": xsar.__version__,
         "xsarsea_version": xsarsea.__version__,
         "pythonVersion": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-        "polarisationRatio": "/",
+        "polarisationRatio": get_pol_ratio_name(model_co),
         "l2ProcessingUtcTime": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "processingCenter": "IFREMER",
         "firstMeasurementTime": firstMeasurementTime,

@@ -43,3 +43,28 @@ def check_incidence_range(incidence, models, **kwargs):
             rets.append(False)
 
     return rets
+
+
+def get_pol_ratio_name(model_co):
+    """
+    Return polarization ration name of copol model
+
+    Parameters
+    ----------
+    model_co : str
+        copol model name
+
+    Returns
+    -------
+    str
+        if pol = 'HH', return polarization ratio name ; else return '/'
+    """
+
+    model = xsarsea.windspeed.get_model(model_co)
+    if model.pol == 'HH':
+        try:
+            return model.model
+        except AttributeError:
+            return "not_written_in_lut"
+    else:
+        return '/'

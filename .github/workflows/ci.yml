@@ -12,7 +12,7 @@ jobs:
     test:
         runs-on: ubuntu-latest
         timeout-minutes: 360 # 6 hours limit for the job
-
+  
         steps:
           # Checkout the code
           - name: Checkout code
