@@ -32,7 +32,7 @@ jobs:
                 cd recipe
                 eval "$(micromamba shell hook --shell bash)"
                 micromamba activate grdwind_env
-                conda mambabuild .
+                conda mambabuild . -c conda-forge -c tcevaer
 
           # Install the built package into the environment
           - name: Install the built package
