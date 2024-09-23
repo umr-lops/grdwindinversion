@@ -1,4 +1,5 @@
 no_subdir: True
+winddir_convention: "meteorological"
 S1A:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"
