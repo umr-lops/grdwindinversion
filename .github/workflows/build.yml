@@ -37,5 +37,6 @@ jobs:
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
+          source ~/conda/bin/activate base
           cd recipe
           conda-build . --token $ANACONDA_TOKEN --user tcevaer -c tcevaer -c conda-forge
