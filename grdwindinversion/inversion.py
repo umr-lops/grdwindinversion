@@ -98,10 +98,10 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
         template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM_MODE}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
+            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
         match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, BEAM_MODE, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
-        new_format = f"{MISSIONID.lower()}-{BEAM_MODE.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
@@ -243,7 +243,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_c
     See Also
     --------
     xsarsea documentation
-    https://cyclobs.ifremer.fr/static/sarwing_datarmor/xsarsea/examples/windspeed_inversion.html
+    https://cerweb.ifremer.fr/datarmor/doc_sphinx/xsarsea/
     """
     logging.debug("inversion")
 
@@ -635,15 +635,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     config["l2_params"]["model_cross"] = model_cross
     config["sensor_longname"] = sensor_longname
 
-    # need to load gmfs before inversion
-    gmfs_impl = [x for x in [model_co, model_cross] if "gmf_" in x]
-    windspeed.gmfs.GmfModel.activate_gmfs_impl(gmfs_impl)
-    sarwings_luts = [x for x in [model_co, model_cross]
-                     if x.startswith("sarwing_lut_")]
-
-    if len(sarwings_luts) > 0:
-        windspeed.register_sarwing_luts(getConf()["sarwing_luts_path"])
-
+    # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
     if len(nc_luts) > 0:
