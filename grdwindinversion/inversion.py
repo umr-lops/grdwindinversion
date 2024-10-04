@@ -928,8 +928,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
         xr_dataset['winddir_dual'] = transform_winddir(
             wind_dual, xr_dataset.ground_heading, winddir_convention=config["winddir_convention"])
-        xr_dataset['winddir_dual'].attrs["model"] = "%s (%s) & %s (%s)" % (
-            model_co, copol, model_cross, crosspol)
+        xr_dataset["winddir_dual"].attrs["model"] = "winddir_dual is a copy of copol wind direction"
 
         xr_dataset = xr_dataset.assign(
             windspeed_cross=(['line', 'sample'], windspeed_cr))
@@ -941,7 +940,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
         xr_dataset['winddir_cross'] = xr_dataset['winddir_dual'].copy()
         xr_dataset['winddir_cross'].attrs = xr_dataset['winddir_dual'].attrs
-        xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of dualpol wind direction"
+        xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of copol wind direction"
 
     if config["winddir_convention"] == "oceanographic":
         attrs = xr_dataset['ancillary_wind_direction'].attrs
