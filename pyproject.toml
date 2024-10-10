@@ -14,6 +14,9 @@ dependencies = [
     "scipy",
     "fsspec",
     "aiohttp",
+    "xarray-safe-s1",
+    "xradarsat2",
+    "xarray-safe-rcm"
 ]
 
 dynamic = ["version"]
