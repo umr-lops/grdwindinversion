@@ -98,10 +98,10 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         regex = re.compile(
             "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
         template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM_MODE}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
+            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
         match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, BEAM_MODE, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
-        new_format = f"{MISSIONID.lower()}-{BEAM_MODE.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
@@ -243,7 +243,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_c
     See Also
     --------
     xsarsea documentation
-    https://cyclobs.ifremer.fr/static/sarwing_datarmor/xsarsea/examples/windspeed_inversion.html
+    https://cerweb.ifremer.fr/datarmor/doc_sphinx/xsarsea/
     """
     logging.debug("inversion")
 
@@ -282,7 +282,7 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_c
     return wind_co, None, None
 
 
-def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
+def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flattening):
     """
     Rename xr_dataset variables and attributes to match naming convention.
 
@@ -392,13 +392,18 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks):
 
         xr_dataset = xr_dataset.rename({
             'dsig_cross': 'owiDsig_cross',
-            'nesz_cross_final': 'owiNesz_cross_final',
             'winddir_cross': 'owiWindDirection_cross',
             'winddir_dual': 'owiWindDirection',
             'windspeed_cross': 'owiWindSpeed_cross',
             'windspeed_dual': 'owiWindSpeed',
             'sigma0_detrend_cross': 'owiNrcs_detrend_cross'
         })
+
+        if apply_flattening:
+            xr_dataset = xr_dataset.rename({
+                'nesz_cross_flattened': 'owiNesz_cross_flattened',
+            })
+
         # nrcs cross
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
             pol=crosspol)
@@ -635,15 +640,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     config["l2_params"]["model_cross"] = model_cross
     config["sensor_longname"] = sensor_longname
 
-    # need to load gmfs before inversion
-    gmfs_impl = [x for x in [model_co, model_cross] if "gmf_" in x]
-    windspeed.gmfs.GmfModel.activate_gmfs_impl(gmfs_impl)
-    sarwings_luts = [x for x in [model_co, model_cross]
-                     if x.startswith("sarwing_lut_")]
-
-    if len(sarwings_luts) > 0:
-        windspeed.register_sarwing_luts(getConf()["sarwing_luts_path"])
-
+    # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
     if len(nc_luts) > 0:
@@ -767,22 +764,17 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
         if config["apply_flattening"]:
-            xr_dataset = xr_dataset.assign(nesz_cross_final=(
+            xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
                 ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence)))
-            xr_dataset['nesz_cross_final'].attrs[
+            xr_dataset['nesz_cross_flattened'].attrs[
                 "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
-
+            # dsig
+            xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
+                                                          xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset.nesz_cross_flattened)
         else:
-            xr_dataset = xr_dataset.assign(
-                nesz_cross_final=(['line', 'sample'], xr_dataset.nesz.sel(pol=crosspol).values))
-            xr_dataset['nesz_cross_final'].attrs["comment"] = 'nesz has not been flattened'
-
-        xr_dataset.nesz_cross_final.attrs['units'] = 'm^2 / m^2'
-        xr_dataset.nesz_cross_final.attrs['long_name'] = 'Noise Equivalent SigmaNaught'
-
-        # dsig
-        xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
-                                                      xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset.nesz_cross_final)
+            # dsig
+            xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
+                                                          xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset['sigma0_ocean'].sel(pol=crosspol))
 
         xr_dataset.dsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
         xr_dataset.dsig_cross.attrs['formula_used'] = config["dsig_" +
@@ -936,8 +928,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
         xr_dataset['winddir_dual'] = transform_winddir(
             wind_dual, xr_dataset.ground_heading, winddir_convention=config["winddir_convention"])
-        xr_dataset['winddir_dual'].attrs["model"] = "%s (%s) & %s (%s)" % (
-            model_co, copol, model_cross, crosspol)
+        xr_dataset["winddir_dual"].attrs["model"] = "winddir_dual is a copy of copol wind direction"
 
         xr_dataset = xr_dataset.assign(
             windspeed_cross=(['line', 'sample'], windspeed_cr))
@@ -949,7 +940,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
         xr_dataset['winddir_cross'] = xr_dataset['winddir_dual'].copy()
         xr_dataset['winddir_cross'].attrs = xr_dataset['winddir_dual'].attrs
-        xr_dataset["winddir_cross"].attrs["model"] = "No model used ; content is a copy of dualpol wind direction"
+        xr_dataset["winddir_cross"].attrs["model"] = "winddir_cross is a copy of copol wind direction"
 
     if config["winddir_convention"] == "oceanographic":
         attrs = xr_dataset['ancillary_wind_direction'].attrs
@@ -960,7 +951,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
             "long_name"] = f"{ancillary_name} wind direction in oceanographic convention (clockwise, to), ex: 0°=to north, 90°=to east"
 
     xr_dataset, encoding = makeL2asOwi(
-        xr_dataset, dual_pol, copol, crosspol, add_streaks=add_streaks)
+        xr_dataset, dual_pol, copol, crosspol, add_streaks=add_streaks, apply_flattening=config["apply_flattening"])
 
     #  add attributes
     firstMeasurementTime = None

@@ -12,11 +12,11 @@ jobs:
     test:
         runs-on: ubuntu-latest
         timeout-minutes: 360 # 6 hours limit for the job
-  
+
         steps:
-          # Checkout the code
-          - name: Checkout code
-            uses: actions/checkout@v4
+            # Checkout the code
+            - name: Checkout code
+              uses: actions/checkout@v4
 
           - uses: mamba-org/setup-micromamba@v1
             with:
@@ -42,57 +42,56 @@ jobs:
                 micromamba activate grdwind_env
                 conda install --use-local grdwindinversion -y -c tcevaer -c conda-forge
 
-          # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
-          # WARNING : modify the key if the data is modified !!
-          - name: Cache test data
-            uses: actions/cache@v4
-            id: cache
-            with:
-              path: ./test_data
-              key: test-data-v3
-              restore-keys: test-data-v3
+            # Cache the test data if previously downloaded (up to 10 GB limit for the cache)
+            # WARNING : modify the key if the data is modified !!
+            - name: Cache test data
+              uses: actions/cache@v4
+              id: cache
+              with:
+                  path: ./test_data
+                  key: test-data-v3
+                  restore-keys: test-data-v3
 
-          # Download test data if not already cached
-          - name: Download test data
-            if: steps.cache.outputs.cache-hit != 'true' # Only download if cache miss
-            run: |
-                mkdir -p ./test_data/
-                wget https://cloud.ifremer.fr/index.php/s/ExLQ2TnYAqozPWE/download -O /tmp/ecmwf.zip
-                unzip /tmp/ecmwf.zip -d ./test_data/
-                wget https://cloud.ifremer.fr/index.php/s/kRgdOOPsjoZieZR/download -O /tmp/l1.zip
-                unzip /tmp/l1.zip -d ./test_data/
-            timeout-minutes: 200 # Adjust depending on the size of your data
+            # Download test data if not already cached
+            - name: Download test data
+              if: steps.cache.outputs.cache-hit != 'true' # Only download if cache miss
+              run: |
+                  mkdir -p ./test_data/
+                  wget https://cloud.ifremer.fr/index.php/s/ExLQ2TnYAqozPWE/download -O /tmp/ecmwf.zip
+                  unzip /tmp/ecmwf.zip -d ./test_data/
+                  wget https://cloud.ifremer.fr/index.php/s/kRgdOOPsjoZieZR/download -O /tmp/l1.zip
+                  unzip /tmp/l1.zip -d ./test_data/
+              timeout-minutes: 200 # Adjust depending on the size of your data
 
-          # Set up xsar configuration
-          - name: Setup xsar configuration
-            run: |
-                mkdir -p ~/.xsar
-                echo "data_dir: /tmp" > ~/.xsar/config.yaml
-                echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yaml
-                echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv" >> ~/.xsar/config.yaml
+            # Set up xsar configuration
+            - name: Setup xsar configuration
+              run: |
+                  mkdir -p ~/.xsar
+                  echo "data_dir: /tmp" > ~/.xsar/config.yaml
+                  echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yaml
+                  echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv" >> ~/.xsar/config.yaml
 
-          # Set up grdwindinversion configuration
-          - name: Setup grdwindinversion configuration
-            run: |
-                mkdir -p ~/.grdwindinversion
-                echo "'ecmwf_0100_1h': ./test_data/ECMWF/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc" > ~/.grdwindinversion/data_config.yaml
-                echo "'ecmwf_0125_1h': ./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc" >> ~/.grdwindinversion/data_config.yaml
-                #echo "'sarwing_luts_path': './test_data/GMFS/v1.6/'" >> ~/.grdwindinversion/data_config.yaml
-                #echo "'nc_luts_path': ./test_data/GMFS/nc_luts" >> ~/.grdwindinversion/data_config.yaml
-                #echo "'lut_cmod7_path': './test_data/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script'" >> ~/.grdwindinversion/data_config.yaml
-                #echo "'lut_ms1ahw_path': './test_data/GMFS/v1.6/GMF_cmodms1ahw'" >> ~/.grdwindinversion/data_config.yaml
+            # Set up grdwindinversion configuration
+            - name: Setup grdwindinversion configuration
+              run: |
+                  mkdir -p ~/.grdwindinversion
+                  echo "'ecmwf_0100_1h': ./test_data/ECMWF/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc" > ~/.grdwindinversion/data_config.yaml
+                  echo "'ecmwf_0125_1h': ./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc" >> ~/.grdwindinversion/data_config.yaml
+                  #echo "'nc_luts_path': ./test_data/GMFS/nc_luts" >> ~/.grdwindinversion/data_config.yaml
+                  #echo "'lut_cmod7_path': './test_data/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script'" >> ~/.grdwindinversion/data_config.yaml
+                  #echo "'lut_ms1ahw_path': './test_data/GMFS/v1.6/GMF_cmodms1ahw'" >> ~/.grdwindinversion/data_config.yaml
 
-          # Run the tests
-          - name: Run tests
-            run: |
-                eval "$(micromamba shell hook --shell bash)"
-                micromamba activate grdwind_env
-                pytest
+            # Run the tests
+            - name: Run tests
+              run: |
+                  eval "$(micromamba shell hook --shell bash)"
+                  micromamba activate grdwind_env
+                  pytest
 
-                # Optionally, upload test artifacts (NetCDF files or logs) if needed
-                #- name: Upload test artifacts
-                #  if: failure()  # Only upload on failure
-                #  uses: actions/upload-artifact@v2
-                #  with:
-                #    name: test-output
-                #    path: ./test_output/
+                  # Optionally, upload test artifacts (NetCDF files or logs) if needed
+                  #- name: Upload test artifacts
+                  #  if: failure()  # Only upload on failure
+                  #  uses: actions/upload-artifact@v2
+                  #  with:
+                  #    name: test-output
+                  #    path: ./test_output/
