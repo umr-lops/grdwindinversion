@@ -101,7 +101,7 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
         match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, BEAM_MODE, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
-        new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{BEAM_MODE.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
