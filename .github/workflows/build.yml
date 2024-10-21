@@ -1,13 +1,9 @@
 name: Build and Upload Conda Package
 
 on:
-  workflow_run:
-    workflows: ["Upload package to PyPI"]
+  release:
     types:
-      - completed
-  pull_request:
-    branches:
-      - main
+      - created
 
 jobs:
   build-and-upload-conda-package:
