@@ -28,6 +28,10 @@ jobs:
           - name: Create environment and install tools
             run: micromamba create -n grdwind_env pytest conda-build boa python=3.10 -y -c tcevaer -c conda-forge
 
+          - name: Configure Conda channel priority to flexible
+            run: |
+              micromamba config --set channel_priority flexible
+
           - name: Build package
             run: |
                 cd recipe
