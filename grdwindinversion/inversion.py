@@ -1,3 +1,4 @@
+import tempfile
 import traceback
 
 import xsar
@@ -15,14 +16,12 @@ from scipy.ndimage import binary_dilation
 import re
 import string
 import os
-from grdwindinversion.streaks import get_streaks
-from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name
+from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing
 from grdwindinversion.load_config import getConf
 # optional debug messages
 import logging
-logging.basicConfig()
-logging.getLogger('xsarsea.windspeed').setLevel(
-    logging.INFO)  # or .setLevel(logging.INFO)
+logger = logging.getLogger('grdwindinversion.inversion')
+logger.addHandler(logging.NullHandler())
 
 
 def getSensorMetaDataset(filename):
@@ -96,11 +95,9 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     elif sensor == 'RCM':
         regex = re.compile(
-            "([A-Z0-9]+)_OK([0-9]+)_PK([0-9]+)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)_(.*?)")
-        template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_${DATA3}_${BEAM}_${DATE}_${TIME}_${POLARIZATION1}_${POLARIZATION2}_${PRODUCT}")
+            r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$")
         match = regex.match(basename_match)
-        MISSIONID, DATA1, DATA2, DATA3, BEAM_MODE, DATE, TIME, POLARIZATION1, POLARIZATION2, LAST = match.groups()
+        MISSIONID, DATA1, DATA2, DATA3, BEAM, DATE, TIME, POLARIZATION, PRODUCT = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     else:
         raise ValueError(
@@ -209,6 +206,7 @@ def getAncillary(meta, ancillary_name='ecmwf'):
                          ancillary_name)
 
 
+@timing(logger=logger.debug)
 def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_co, model_cross, **kwargs):
     """
     Invert sigma0 to retrieve wind using model (lut or gmf).
@@ -282,7 +280,8 @@ def inverse(dual_pol, inc, sigma0, sigma0_dual, ancillary_wind, dsig_cr, model_c
     return wind_co, None, None
 
 
-def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flattening):
+@timing(logger=logger.debug)
+def makeL2asOwi(xr_dataset, config):
     """
     Rename xr_dataset variables and attributes to match naming convention.
 
@@ -290,12 +289,8 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
     ----------
     xr_dataset: xarray.Dataset
         dataset to rename
-    dual_pol: bool
-        True if dualpol, False if singlepol
-    copol: str
-        copolarization name
-    crosspol: str
-        crosspolarization name
+    config: dict
+        configuration dict
 
     Returns
     -------
@@ -320,12 +315,26 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
         'winddir_co': 'owiWindDirection_co',
         'ancillary_wind_speed': 'owiAncillaryWindSpeed',
         'ancillary_wind_direction': 'owiAncillaryWindDirection',
-        'sigma0_detrend': 'owiNrcs_detrend'
+        'sigma0_detrend': 'owiNrcs_detrend',
     })
 
     if "offboresight" in xr_dataset:
         xr_dataset = xr_dataset.rename(
             {"offboresight": "owiOffboresightAngle"})
+
+    if config["add_nrcs_model"]:
+        xr_dataset = xr_dataset.rename(
+            {"ancillary_nrcs": "owiAncillaryNrcs"})
+        xr_dataset.owiAncillaryNrcs.attrs["units"] = "m^2 / m^2"
+        xr_dataset.owiAncillaryNrcs.attrs[
+            "long_name"] = f"Ancillary Normalized Radar Cross Section - simulated from {config['l2_params']['copol_gmf']} & ancillary wind"
+
+        if config["l2_params"]["dual_pol"]:
+            xr_dataset = xr_dataset.rename(
+                {"ancillary_nrcs_cross": "owiAncillaryNrcs_cross"})
+            xr_dataset.owiAncillaryNrcs_cross.attrs["units"] = "m^2 / m^2"
+            xr_dataset.owiAncillaryNrcs_cross.attrs[
+                "long_name"] = f"Ancillary Normalized Radar Cross Section - simulated from {config['l2_params']['crosspol_gmf']} & ancillary wind"
 
     xr_dataset.owiLon.attrs["units"] = "degrees_east"
     xr_dataset.owiLon.attrs["long_name"] = "Longitude at wind cell center"
@@ -343,23 +352,25 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
     xr_dataset.owiElevationAngle.attrs["long_name"] = "Elevation angle at wind cell center"
     xr_dataset.owiElevationAngle.attrs["standard_name"] = "elevation"
 
-    xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(pol=copol)
+    xr_dataset['owiNrcs'] = xr_dataset['sigma0_ocean'].sel(
+        pol=config["l2_params"]["copol"])
     xr_dataset.owiNrcs.attrs = xr_dataset.sigma0_ocean.attrs
     xr_dataset.owiNrcs.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNrcs.attrs['long_name'] = 'Normalized Radar Cross Section'
     xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction - owiNesz'
 
-    xr_dataset['owiMask_Nrcs'] = xr_dataset['sigma0_mask'].sel(pol=copol)
+    xr_dataset['owiMask_Nrcs'] = xr_dataset['sigma0_mask'].sel(
+        pol=config["l2_params"]["copol"])
     xr_dataset.owiMask_Nrcs.attrs = xr_dataset.sigma0_mask.attrs
 
     # NESZ & DSIG
     xr_dataset = xr_dataset.assign(
-        owiNesz=(['line', 'sample'], xr_dataset.nesz.sel(pol=copol).values))
+        owiNesz=(['line', 'sample'], xr_dataset.nesz.sel(pol=config["l2_params"]["copol"]).values))
     xr_dataset.owiNesz.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNesz.attrs['long_name'] = 'Noise Equivalent SigmaNaught'
 
     xr_dataset['owiNrcs_no_noise_correction'] = xr_dataset['sigma0_ocean_raw'].sel(
-        pol=copol)
+        pol=config["l2_params"]["copol"])
     xr_dataset.owiNrcs_no_noise_correction.attrs = xr_dataset.sigma0_ocean_raw.attrs
     xr_dataset.owiNrcs_no_noise_correction.attrs['units'] = 'm^2 / m^2'
     xr_dataset.owiNrcs_no_noise_correction.attrs[
@@ -378,7 +389,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
     # sigma0_raw__corrected cross
     if "sigma0_raw__corrected" in xr_dataset:
         xr_dataset['owiNrcs_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(
-            pol=copol)
+            pol=config["l2_params"]["copol"])
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNrcs_no_noise_correction_recalibrated.attrs[
@@ -388,7 +399,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
 
         xr_dataset.owiNrcs.attrs['definition'] = 'owiNrcs_no_noise_correction_recalibrated - owiNesz'
 
-    if dual_pol:
+    if config["l2_params"]["dual_pol"]:
 
         xr_dataset = xr_dataset.rename({
             'dsig_cross': 'owiDsig_cross',
@@ -399,31 +410,31 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
             'sigma0_detrend_cross': 'owiNrcs_detrend_cross'
         })
 
-        if apply_flattening:
+        if config["apply_flattening"]:
             xr_dataset = xr_dataset.rename({
                 'nesz_cross_flattened': 'owiNesz_cross_flattened',
             })
 
         # nrcs cross
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
-            pol=crosspol)
+            pol=config["l2_params"]["crosspol"])
 
         xr_dataset.owiNrcs_cross.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNrcs_cross.attrs['long_name'] = 'Normalized Radar Cross Section'
         xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction - owiNesz_cross'
 
         xr_dataset['owiMask_Nrcs_cross'] = xr_dataset['sigma0_mask'].sel(
-            pol=crosspol)
+            pol=config["l2_params"]["crosspol"])
         xr_dataset.owiMask_Nrcs_cross.attrs = xr_dataset.sigma0_mask.attrs
 
         # nesz cross
         xr_dataset = xr_dataset.assign(owiNesz_cross=(
-            ['line', 'sample'], xr_dataset.nesz.sel(pol=crosspol).values))  # no flattening
+            ['line', 'sample'], xr_dataset.nesz.sel(pol=config["l2_params"]["crosspol"]).values))  # no flattening
         xr_dataset.owiNesz_cross.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNesz_cross.attrs['long_name'] = 'Noise Equivalent SigmaNaught'
 
         xr_dataset['owiNrcs_cross_no_noise_correction'] = xr_dataset['sigma0_ocean_raw'].sel(
-            pol=crosspol)
+            pol=config["l2_params"]["crosspol"])
 
         xr_dataset.owiNrcs_cross_no_noise_correction.attrs['units'] = 'm^2 / m^2'
         xr_dataset.owiNrcs_cross_no_noise_correction.attrs[
@@ -432,7 +443,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
         #  sigma0_raw__corrected cross
         if "sigma0_raw__corrected" in xr_dataset:
             xr_dataset['owiNrcs_cross_no_noise_correction_recalibrated'] = xr_dataset['sigma0_raw__corrected'].sel(
-                pol=crosspol)
+                pol=config["l2_params"]["crosspol"])
             xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs = xr_dataset.sigma0_raw__corrected.attrs
             xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs['units'] = 'm^2 / m^2'
             xr_dataset.owiNrcs_cross_no_noise_correction_recalibrated.attrs[
@@ -442,10 +453,19 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
 
             xr_dataset.owiNrcs_cross.attrs['definition'] = 'owiNrcs_cross_no_noise_correction_recalibrated - owiNesz_cross'
 
-    if add_streaks:
+    if config["add_gradientsfeatures"]:
         xr_dataset = xr_dataset.rename({
-            'streaks_direction': 'owiStreaksDirection',
+            'heterogeneity_mask': 'owiWindFilter'
         })
+    else:
+        xr_dataset['owiWindFilter'] = xr.full_like(xr_dataset.owiNrcs, 0)
+        xr_dataset['owiWindFilter'].attrs['long_name'] = "Quality flag taking into account the local heterogeneity"
+        xr_dataset['owiWindFilter'].attrs['valid_range'] = np.array([0, 3])
+        xr_dataset['owiWindFilter'].attrs['flag_values'] = np.array([
+            0, 1, 2, 3])
+        xr_dataset['owiWindFilter'].attrs[
+            'flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
+        xr_dataset['owiWindFilter'].attrs['comment'] = 'NOT COMPUTED YET'
 
     #  other variables
 
@@ -458,15 +478,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
     xr_dataset['owiWindQuality'].attrs['flag_meanings'] = "good medium low poor"
     xr_dataset['owiWindQuality'].attrs['comment'] = 'NOT COMPUTED YET'
 
-    xr_dataset['owiWindFilter'] = xr.full_like(xr_dataset.owiNrcs, 0)
-    xr_dataset['owiWindFilter'].attrs['long_name'] = "Quality flag taking into account the local heterogeneity"
-    xr_dataset['owiWindFilter'].attrs['valid_range'] = np.array([0, 3])
-    xr_dataset['owiWindFilter'].attrs['flag_values'] = np.array([
-        0, 1, 2, 3])
-    xr_dataset['owiWindFilter'].attrs[
-        'flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
-    xr_dataset['owiWindFilter'].attrs['comment'] = 'NOT COMPUTED YET'
-
     xr_dataset = xr_dataset.rename(
         {"line": "owiAzSize", "sample": "owiRaSize"})
 
@@ -475,8 +486,6 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
     if 'sigma0_raw__corrected' in xr_dataset:
         xr_dataset = xr_dataset.drop_vars(["sigma0_raw__corrected"])
     xr_dataset = xr_dataset.drop_dims(['pol'])
-
-    xr_dataset.compute()
 
     table_fillValue = {
         "owiWindQuality": -1,
@@ -505,7 +514,7 @@ def makeL2asOwi(xr_dataset, dual_pol, copol, crosspol, add_streaks, apply_flatte
     return xr_dataset, encoding
 
 
-def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False, resolution='1000m'):
+def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeatures=False, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -549,6 +558,10 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
 
+    # si une des deux n'est pas VV VH HH HV on ne fait rien
+    if not all([pol in ["VV", "VH", "HH", "HV"] for pol in meta.pols.split(' ')]):
+        raise ValueError(f"Polarisation non gérée : meta.pols =  {meta.pols}")
+
     no_subdir_cfg = config_base.get("no_subdir", False)
     config["no_subdir"] = no_subdir_cfg
 
@@ -559,6 +572,22 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         logging.warning(
             f'Using meteorological convention because "winddir_convention" was not found in config.')
     config["winddir_convention"] = winddir_convention
+
+    if "add_gradientsfeatures" in config_base:
+        add_gradientsfeatures = config_base["add_gradientsfeatures"]
+    else:
+        add_gradientsfeatures = False
+        logging.warning(
+            f'Not computing gradients by default')
+    config["add_gradientsfeatures"] = add_gradientsfeatures
+
+    if "add_nrcs_model" in config_base:
+        add_nrcs_model = config_base["add_nrcs_model"]
+    else:
+        add_nrcs_model = False
+        logging.warning(
+            f'Not computing nrcs from model by default')
+    config["add_nrcs_model"] = add_nrcs_model
 
     # creating a dictionnary of parameters
     config["l2_params"] = {}
@@ -707,7 +736,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         90. - np.rad2deg(np.arctan2(xr_dataset.model_V10, xr_dataset.model_U10)) + 180) % 360
 
     xr_dataset['ancillary_wind_direction'] = xr.where(xr_dataset['mask'], np.nan,
-                                                      xr_dataset['ancillary_wind_direction'].compute()).transpose(
+                                                      xr_dataset['ancillary_wind_direction']).transpose(
         *xr_dataset['ancillary_wind_direction'].dims)
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
@@ -718,7 +747,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
         xr_dataset['model_U10']**2+xr_dataset['model_V10']**2)
     xr_dataset['ancillary_wind_speed'] = xr.where(xr_dataset['mask'], np.nan,
-                                                  xr_dataset['ancillary_wind_speed'].compute()).transpose(
+                                                  xr_dataset['ancillary_wind_speed']).transpose(
         *xr_dataset['ancillary_wind_speed'].dims)
     xr_dataset['ancillary_wind_speed'].attrs = {}
     xr_dataset['ancillary_wind_speed'].attrs['units'] = 'm s^-1'
@@ -727,7 +756,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     xr_dataset['ancillary_wind_speed'].attrs['standart_name'] = 'wind_speed'
 
     xr_dataset['ancillary_wind'] = xr.where(xr_dataset['mask'], np.nan,
-                                            (xr_dataset.ancillary_wind_speed * np.exp(1j * xsarsea.dir_meteo_to_sample(xr_dataset.ancillary_wind_direction, xr_dataset.ground_heading))).compute()).transpose(
+                                            (xr_dataset.ancillary_wind_speed * np.exp(1j * xsarsea.dir_meteo_to_sample(xr_dataset.ancillary_wind_direction, xr_dataset.ground_heading)))).transpose(
         *xr_dataset['ancillary_wind_speed'].dims)
 
     xr_dataset.attrs['ancillary_source'] = xr_dataset['model_U10'].attrs['history'].split('decoded: ')[
@@ -736,7 +765,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
 
     # nrcs processing
     xr_dataset['sigma0_ocean'] = xr.where(xr_dataset['mask'], np.nan,
-                                          xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
+                                          xr_dataset['sigma0']).transpose(*xr_dataset['sigma0'].dims)
     xr_dataset['sigma0_ocean'].attrs = xr_dataset['sigma0'].attrs
     #  we forced it to 1e-15
     xr_dataset['sigma0_ocean'].attrs['comment'] = "clipped, no values <=0 ; 1e-15 instread"
@@ -751,7 +780,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset['sigma0_ocean'] <= 0, 1e-15, xr_dataset['sigma0_ocean'])
 
     xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['mask'], np.nan,
-                                              xr_dataset['sigma0_raw'].compute()).transpose(*xr_dataset['sigma0_raw'].dims)
+                                              xr_dataset['sigma0_raw']).transpose(*xr_dataset['sigma0_raw'].dims)
 
     xr_dataset['sigma0_ocean_raw'].attrs = xr_dataset['sigma0_raw'].attrs
 
@@ -793,7 +822,51 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset.attrs["path_aux_cal_old"] = os.path.basename(os.path.dirname(
             os.path.dirname(xsar_dataset.datatree['recalibration'].attrs['path_aux_cal_old'])))
 
-    if add_streaks:
+    if add_nrcs_model:
+        # add timing
+        phi = np.abs(
+            np.rad2deg(xsarsea.dir_meteo_to_sample(
+                xr_dataset["ancillary_wind_direction"], xr_dataset["ground_heading"]))
+        )
+
+        varnames = ["ancillary_nrcs"]
+        gmf_names = [model_co]
+        if dual_pol:
+            varnames.append("ancillary_nrcs_cross")
+            gmf_names.append(model_cross)
+
+        for idx, gmf_name in enumerate(gmf_names):
+
+            @timing(logger=logger.info)
+            def apply_lut_to_dataset():
+                lut = xsarsea.windspeed.get_model(
+                    gmf_name).to_lut(unit="linear")
+
+                def lut_selection(incidence, wspd, phi):
+                    if "phi" in lut.coords:
+                        return lut.sel(
+                            incidence=incidence, wspd=wspd, phi=phi, method="nearest"
+                        )
+                    else:
+                        return lut.sel(
+                            incidence=incidence, wspd=wspd, method="nearest"
+                        )
+
+                xr_dataset[varnames[idx]] = xr.apply_ufunc(
+                    lut_selection,
+                    xr_dataset.incidence,
+                    xr_dataset.ancillary_wind_speed,
+                    phi,
+                    vectorize=True,
+                    dask="parallelized",
+                    output_dtypes=[float],
+                )
+
+            apply_lut_to_dataset()
+
+    if add_gradientsfeatures:
+        from grdwindinversion.streaks import GradientFeatures
+
         xsar_dataset_100 = fct_dataset(
             meta, resolution='100m')
         xr_dataset_100 = xsar_dataset_100.datatree['measurement'].to_dataset()
@@ -819,15 +892,40 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset_100.land_mask.values = binary_dilation(xr_dataset_100['land_mask'].values.astype('uint8'),
                                                           structure=np.ones((3, 3), np.uint8), iterations=3)
         xr_dataset_100['sigma0_detrend'] = xr.where(
-            xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0'].compute()).transpose(*xr_dataset_100['sigma0'].dims)
+            xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0']).transpose(*xr_dataset_100['sigma0'].dims)
 
-        xr_dataset['streaks_direction'] = get_streaks(
-            xr_dataset, xr_dataset_100)
+        xr_dataset_100['ancillary_wind'] = (
+            xr_dataset_100.model_U10 + 1j * xr_dataset_100.model_V10) * np.exp(1j * np.deg2rad(xr_dataset_100.ground_heading))
 
-    return xr_dataset, out_file, config
+        downscales_factors = [1, 2, 4, 8]
+        # 4 and 8 must be in downscales_factors
+        assert all([x in downscales_factors for x in [4, 8]])
+
+        gradientFeatures = GradientFeatures(
+            xr_dataset=xr_dataset,
+            xr_dataset_100=xr_dataset_100,
+            windows_sizes=[1600, 3200],
+            downscales_factors=downscales_factors,
+            window_step=1
+        )
+        dataArraysHeterogeneity = gradientFeatures.get_heterogeneity_mask(
+            config)
+        xr_dataset = xr_dataset.merge(dataArraysHeterogeneity)
+
+        # Create your streaks dataset
+        xr_dataset_streaks = xr.Dataset({
+            'dir_smooth': gradientFeatures.streaks_individual(),
+            'dir_mean_smooth': gradientFeatures.streaks_mean_smooth(),
+            'dir_smooth_mean': gradientFeatures.streaks_smooth_mean(),
+        })
+    else:
+        xr_dataset_streaks = None
+
+    return xr_dataset, xr_dataset_streaks, out_file, config
 
 
-def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add_streaks=False, resolution='1000m'):
+@timing(logger=logger.info)
+def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, resolution='1000m'):
     """
     Main function to generate L2 product.
 
@@ -854,8 +952,8 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         final dataset
     """
 
-    xr_dataset, out_file, config = preprocess(
-        filename, outdir, config_path, overwrite, add_streaks, resolution)
+    xr_dataset, xr_dataset_streaks, out_file, config = preprocess(
+        filename, outdir, config_path, overwrite, resolution)
 
     model_co = config["l2_params"]["model_co"]
     model_cross = config["l2_params"]["model_cross"]
@@ -899,8 +997,6 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
                                                model_co=model_co,
                                                model_cross=model_cross,
                                                ** kwargs)
-    wind_co.compute()
-
     # windspeed_co
     xr_dataset['windspeed_co'] = np.abs(wind_co)
     xr_dataset["windspeed_co"].attrs["units"] = "m.s⁻1"
@@ -917,7 +1013,6 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
     # windspeed_dual / windspeed_cr / /winddir_dual / winddir_cr
     if dual_pol and wind_dual is not None:
-        wind_dual.compute()
         xr_dataset['windspeed_dual'] = np.abs(wind_dual)
         xr_dataset["windspeed_dual"].attrs["units"] = "m.s⁻1"
         xr_dataset["windspeed_dual"].attrs["long_name"] = "Wind speed inverted from model %s (%s) & %s (%s)" % (
@@ -951,8 +1046,9 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
             "long_name"] = f"{ancillary_name} wind direction in oceanographic convention (clockwise, to), ex: 0°=to north, 90°=to east"
 
     xr_dataset, encoding = makeL2asOwi(
-        xr_dataset, dual_pol, copol, crosspol, add_streaks=add_streaks, apply_flattening=config["apply_flattening"])
+        xr_dataset, config)
 
+    xr_dataset = xr_dataset.compute()
     #  add attributes
     firstMeasurementTime = None
     lastMeasurementTime = None
@@ -1035,7 +1131,26 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
 
+    # Sauvegarde de xr_dataset dans le fichier de sortie final
     xr_dataset.to_netcdf(out_file, mode="w", encoding=encoding)
+
+    # Vérifier si le dataset de streaks est présent
+    if xr_dataset_streaks is not None:
+        # Créer un fichier temporaire pour le dataset streaks
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".nc") as tmp_file:
+            temp_out_file = tmp_file.name
+
+        # Écrire xr_dataset_streaks dans le fichier temporaire
+        xr_dataset_streaks.to_netcdf(
+            temp_out_file, mode="w", group="owiWindStreaks")
+
+        # Charger le fichier temporaire et l'ajouter au fichier final en tant que groupe
+        with xr.open_dataset(temp_out_file, group="owiWindStreaks") as ds_streaks:
+            ds_streaks.to_netcdf(out_file, mode="a", group="owiWindStreaks")
+
+        # Supprimer le fichier temporaire après l'opération
+        os.remove(temp_out_file)
+
     if generateCSV:
         df = xr_dataset.to_dataframe()
         df = df[df.owiMask == False]
@@ -1046,7 +1161,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file, xr_dataset
+    return out_file
 
 
 def transform_winddir(wind_cpx, ground_heading, winddir_convention='meteorological'):

@@ -1,6 +1,6 @@
 no_subdir: True
 winddir_convention: "meteorological"
-add_gradientsfeatures: False
+add_gradientsfeatures: True
 add_nrcs_model: False
 S1A:
     GMF_VV_NAME: "gmf_cmod5n"
