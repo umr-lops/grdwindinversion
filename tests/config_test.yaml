@@ -1,5 +1,7 @@
 no_subdir: True
 convention: "meteorological"
+add_gradientsfeatures: True
+add_nrcs_model: True
 S1A:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"

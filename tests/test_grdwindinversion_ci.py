@@ -40,7 +40,6 @@ def test_makeL2_generation():
             config_path=config_path,
             overwrite=True,  # Set to True to ensure a clean run
             generateCSV=False,  # Disable CSV generation for now
-            add_gradientsfeatures=False,
             resolution="1000m",
         )
 
