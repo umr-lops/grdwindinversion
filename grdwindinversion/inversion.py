@@ -1161,7 +1161,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file
+    return out_file, xr_dataset
 
 
 def transform_winddir(wind_cpx, ground_heading, winddir_convention='meteorological'):
