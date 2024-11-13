@@ -636,6 +636,9 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         logging.error(e)
         sys.exit(-1)
 
+    # load
+    xr_dataset = xr_dataset.load()
+
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
         dual_pol = True
@@ -869,8 +872,11 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
 
         xsar_dataset_100 = fct_dataset(
             meta, resolution='100m')
+
         xr_dataset_100 = xsar_dataset_100.datatree['measurement'].to_dataset()
         xr_dataset_100 = xr_dataset_100.rename(map_model)
+        # load dataset
+        xr_dataset_100 = xr_dataset_100.load()
 
         # adding sigma0 detrend
         xr_dataset_100['sigma0_detrend'] = xsarsea.sigma0_detrend(
