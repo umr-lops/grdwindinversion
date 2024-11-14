@@ -797,7 +797,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
         if config["apply_flattening"]:
             xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence)))
+                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
             xr_dataset['nesz_cross_flattened'].attrs[
                 "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
             # dsig
