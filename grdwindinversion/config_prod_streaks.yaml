@@ -3,6 +3,7 @@ winddir_convention: "meteorological"
 add_gradientsfeatures: True
 add_nrcs_model: False
 S1A:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"
     dsig_VH_NAME: "gmf_s1_v2"
@@ -14,6 +15,7 @@ S1A:
     phi_step: 1.0
     resolution: "high"
 S1B:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"
     dsig_VH_NAME: "gmf_s1_v2"
@@ -25,6 +27,7 @@ S1B:
     phi_step: 1.0
     resolution: "high"
 RS2:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_rs2_v2"
     dsig_VH_NAME: "gmf_rs2_v2"
@@ -36,6 +39,7 @@ RS2:
     phi_step: 1.0
     resolution: "high"
 RCM:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_rcm_noaa"
     dsig_VH_NAME: "gmf_s1_v2"
