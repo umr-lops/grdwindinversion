@@ -743,9 +743,9 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         *xr_dataset['ancillary_wind_direction'].dims)
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
-    xr_dataset['ancillary_wind_direction'].attrs[
-        'long_name'] = f'{ancillary_name} wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east'
+    xr_dataset['ancillary_wind_direction'].attrs['long_name'] = f'{ancillary_name} wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east'
     xr_dataset['ancillary_wind_direction'].attrs['standart_name'] = 'wind_direction'
+    
 
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
         xr_dataset['model_U10']**2+xr_dataset['model_V10']**2)
@@ -1053,7 +1053,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
 
     xr_dataset, encoding = makeL2asOwi(
         xr_dataset, config)
-
+    
     xr_dataset = xr_dataset.compute()
     #  add attributes
     firstMeasurementTime = None
