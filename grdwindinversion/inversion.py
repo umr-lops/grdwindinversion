@@ -768,7 +768,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
         if config["apply_flattening"]:
             xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence)))
+                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
             xr_dataset['nesz_cross_flattened'].attrs[
                 "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
             # dsig
@@ -931,7 +931,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
         xr_dataset["winddir_dual"].attrs["model"] = "winddir_dual is a copy of copol wind direction"
 
         xr_dataset = xr_dataset.assign(
-            windspeed_cross=(['line', 'sample'], windspeed_cr))
+            windspeed_cross=(['line', 'sample'], windspeed_cr.data))
         xr_dataset["windspeed_cross"].attrs["units"] = "m.s⁻1"
         xr_dataset["windspeed_cross"].attrs["long_name"] = "Wind Speed inverted from model %s (%s)" % (
             model_cross, crosspol)
