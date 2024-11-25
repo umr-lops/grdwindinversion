@@ -774,7 +774,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         else:
             # dsig
             xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
-                                                          xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset['sigma0_ocean'].sel(pol=crosspol))
+                                                          xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset.nesz.sel(pol=crosspol))
 
         xr_dataset.dsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
         xr_dataset.dsig_cross.attrs['formula_used'] = config["dsig_" +
