@@ -34,7 +34,7 @@ def check_incidence_range(incidence, models, **kwargs):
                 f"GMF {model_name} inc_range will be changed by kwargs to {kwargs['inc_range']}")
             lut_range = kwargs['inc_range']
 
-        inc_range = [incidence.values.min(), incidence.values.max()]
+        inc_range = [incidence.min(), incidence.max()]
         if (inc_range[0] >= lut_range[0] and inc_range[1] <= lut_range[1]):
             rets.append(True)
         else:
