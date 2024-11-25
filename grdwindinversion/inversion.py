@@ -607,6 +607,9 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         logging.error(e)
         sys.exit(-1)
 
+    # load
+    xr_dataset = xr_dataset.load()
+
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
         dual_pol = True
@@ -707,7 +710,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         90. - np.rad2deg(np.arctan2(xr_dataset.model_V10, xr_dataset.model_U10)) + 180) % 360
 
     xr_dataset['ancillary_wind_direction'] = xr.where(xr_dataset['mask'], np.nan,
-                                                      xr_dataset['ancillary_wind_direction'].compute()).transpose(
+                                                      xr_dataset['ancillary_wind_direction']).transpose(
         *xr_dataset['ancillary_wind_direction'].dims)
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
@@ -718,7 +721,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
         xr_dataset['model_U10']**2+xr_dataset['model_V10']**2)
     xr_dataset['ancillary_wind_speed'] = xr.where(xr_dataset['mask'], np.nan,
-                                                  xr_dataset['ancillary_wind_speed'].compute()).transpose(
+                                                  xr_dataset['ancillary_wind_speed']).transpose(
         *xr_dataset['ancillary_wind_speed'].dims)
     xr_dataset['ancillary_wind_speed'].attrs = {}
     xr_dataset['ancillary_wind_speed'].attrs['units'] = 'm s^-1'
@@ -727,7 +730,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
     xr_dataset['ancillary_wind_speed'].attrs['standart_name'] = 'wind_speed'
 
     xr_dataset['ancillary_wind'] = xr.where(xr_dataset['mask'], np.nan,
-                                            (xr_dataset.ancillary_wind_speed * np.exp(1j * xsarsea.dir_meteo_to_sample(xr_dataset.ancillary_wind_direction, xr_dataset.ground_heading))).compute()).transpose(
+                                            (xr_dataset.ancillary_wind_speed * np.exp(1j * xsarsea.dir_meteo_to_sample(xr_dataset.ancillary_wind_direction, xr_dataset.ground_heading)))).transpose(
         *xr_dataset['ancillary_wind_speed'].dims)
 
     xr_dataset.attrs['ancillary_source'] = xr_dataset['model_U10'].attrs['history'].split('decoded: ')[
@@ -736,7 +739,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
 
     # nrcs processing
     xr_dataset['sigma0_ocean'] = xr.where(xr_dataset['mask'], np.nan,
-                                          xr_dataset['sigma0'].compute()).transpose(*xr_dataset['sigma0'].dims)
+                                          xr_dataset['sigma0']).transpose(*xr_dataset['sigma0'].dims)
     xr_dataset['sigma0_ocean'].attrs = xr_dataset['sigma0'].attrs
     #  we forced it to 1e-15
     xr_dataset['sigma0_ocean'].attrs['comment'] = "clipped, no values <=0 ; 1e-15 instread"
@@ -751,7 +754,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset['sigma0_ocean'] <= 0, 1e-15, xr_dataset['sigma0_ocean'])
 
     xr_dataset['sigma0_ocean_raw'] = xr.where(xr_dataset['mask'], np.nan,
-                                              xr_dataset['sigma0_raw'].compute()).transpose(*xr_dataset['sigma0_raw'].dims)
+                                              xr_dataset['sigma0_raw']).transpose(*xr_dataset['sigma0_raw'].dims)
 
     xr_dataset['sigma0_ocean_raw'].attrs = xr_dataset['sigma0_raw'].attrs
 
@@ -819,7 +822,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_streaks=False
         xr_dataset_100.land_mask.values = binary_dilation(xr_dataset_100['land_mask'].values.astype('uint8'),
                                                           structure=np.ones((3, 3), np.uint8), iterations=3)
         xr_dataset_100['sigma0_detrend'] = xr.where(
-            xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0'].compute()).transpose(*xr_dataset_100['sigma0'].dims)
+            xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0']).transpose(*xr_dataset_100['sigma0'].dims)
 
         xr_dataset['streaks_direction'] = get_streaks(
             xr_dataset, xr_dataset_100)
@@ -899,8 +902,6 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
                                                model_co=model_co,
                                                model_cross=model_cross,
                                                ** kwargs)
-    wind_co.compute()
-
     # windspeed_co
     xr_dataset['windspeed_co'] = np.abs(wind_co)
     xr_dataset["windspeed_co"].attrs["units"] = "m.s⁻1"
@@ -917,7 +918,6 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, add
 
     # windspeed_dual / windspeed_cr / /winddir_dual / winddir_cr
     if dual_pol and wind_dual is not None:
-        wind_dual.compute()
         xr_dataset['windspeed_dual'] = np.abs(wind_dual)
         xr_dataset["windspeed_dual"].attrs["units"] = "m.s⁻1"
         xr_dataset["windspeed_dual"].attrs["long_name"] = "Wind speed inverted from model %s (%s) & %s (%s)" % (
