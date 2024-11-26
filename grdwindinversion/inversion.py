@@ -806,7 +806,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         else:
             # dsig
             xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
-                                                          xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset['sigma0_ocean'].sel(pol=crosspol))
+                                                          xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset.nesz.sel(pol=crosspol))
 
         xr_dataset.dsig_cross.attrs['comment'] = 'variable used to ponderate copol and crosspol'
         xr_dataset.dsig_cross.attrs['formula_used'] = config["dsig_" +
@@ -1032,7 +1032,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
         xr_dataset["winddir_dual"].attrs["model"] = "winddir_dual is a copy of copol wind direction"
 
         xr_dataset = xr_dataset.assign(
-            windspeed_cross=(['line', 'sample'], windspeed_cr))
+            windspeed_cross=(['line', 'sample'], windspeed_cr.data))
         xr_dataset["windspeed_cross"].attrs["units"] = "m.s⁻1"
         xr_dataset["windspeed_cross"].attrs["long_name"] = "Wind Speed inverted from model %s (%s)" % (
             model_cross, crosspol)
