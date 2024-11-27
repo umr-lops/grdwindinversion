@@ -919,13 +919,17 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         xr_dataset = xr_dataset.merge(dataArraysHeterogeneity)
 
         # Create streaks dataset
-        xr_dataset_streaks = xr.Dataset({
-            'longitude': gradientFeatures.streaks_individual().longitude,
-            'latitude': gradientFeatures.streaks_individual().latitude,
-            'dir_smooth': gradientFeatures.streaks_individual().angle,
-            'dir_mean_smooth': gradientFeatures.streaks_mean_smooth().angle,
-            'dir_smooth_mean': gradientFeatures.streaks_smooth_mean().angle,
-        })
+        streaks_indiv = gradientFeatures.streaks_individual()
+        if 'longitude' in streaks_indiv:
+            xr_dataset_streaks = xr.Dataset({
+                'longitude': streaks_indiv.longitude,
+                'latitude': streaks_indiv.latitude,
+                'dir_smooth': streaks_indiv.angle,
+                'dir_mean_smooth': gradientFeatures.streaks_mean_smooth().angle,
+                'dir_smooth_mean': gradientFeatures.streaks_smooth_mean().angle,
+            })
+        else:
+            xr_dataset_streaks = None
     else:
         xr_dataset_streaks = None
 
