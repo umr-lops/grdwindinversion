@@ -14,14 +14,24 @@ logger.addHandler(logging.NullHandler())
 class GradientFeatures:
     def __init__(self, xr_dataset, xr_dataset_100, windows_sizes, downscales_factors, window_step=1):
         """
-        Initialize the GradientFeatures with the dataset and parameters.
+        Initialize variables and xsarsea.gradients.Gradients.
 
-        Parameters:
-        - xr_dataset: xarray.Dataset containing the SAR data.
-        - xr_dataset_100: xarray.Dataset containing the 100m resolution SAR data.
-        - windows_sizes: List of window sizes for gradient computation.
-        - downscales_factors: List of downscale factors for gradient computation.
-        - window_step: Step size for the window (default is 1).
+        Parameters
+        ----------
+        xr_dataset : xarray.Dataset
+            xarray.Dataset containing the SAR data.
+        xr_dataset_100 : xarray.Dataset
+            xarray.Dataset containing the 100m resolution SAR data.
+        windows_sizes : list
+            List of window sizes for gradient computation.
+        downscales_factors : list
+            List of downscale factors for gradient computation.
+        window_step : int
+            Step size for the window (default is 1).
+
+        Returns
+        -------
+        None
         """
         self.xr_dataset = xr_dataset
         self.xr_dataset_100 = xr_dataset_100
@@ -34,12 +44,15 @@ class GradientFeatures:
 
     def _compute_gradients(self):
         """
-        Compute gradients and histograms.
+        Instantiate the gradients object and compute the histogram.
 
-        Parameters:
-        - xr_dataset: xarray.Dataset containing the SAR data.
-        - windows_sizes: List of window sizes for gradient computation.
-        - downscales_factors: List of downscale factors for gradient computation.
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
 
         """
         self.gradients = xsarsea.gradients.Gradients(
@@ -54,7 +67,18 @@ class GradientFeatures:
 
     def get_heterogeneity_mask(self, config):
         """
-        Get the heterogeneity mask from the wind field.
+        Compute the heterogeneity mask.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration parameters.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the dataArrays related toheterogeneity mask.
+
         """
         dual_pol = config["l2_params"]["dual_pol"]
 
@@ -168,15 +192,22 @@ class GradientFeatures:
 
             return new_dataArrays
 
-    def _remove_ambiguity(self, streaks, dataset_hr):
+    def _remove_ambiguity(self, streaks):
         """
         Remove direction ambiguity using ancillary wind data.
 
-        Parameters:
-        - streaks: xarray.Dataset containing the streaks.
-        - dataset_hr: xarray.Dataset containing the ancillary wind data.
+        Parameters
+        ----------
+        streaks : xarray.Dataset
+            Dataset containing the streaks.
+
+        Returns
+        -------
+        xarray.Dataset
+            Dataset containing the streaks with ambiguity removed.
         """
 
+        # Load ancillary wind in antenna convention
         ancillary_wind = self.xr_dataset['ancillary_wind'].interp(
             line=streaks.line,
             sample=streaks.sample,
@@ -197,8 +228,21 @@ class GradientFeatures:
         streaks['angle'] = xr.apply_ufunc(np.angle, streaks_c)
         return streaks
 
-    def convert_to_streaks_meteo(self, streaks):
-        # select needed variables in original dataset, and map them to streaks dataset
+    def convert_to_meteo_convention(self, streaks):
+        """
+        Convert wind direction to meteorological convention by creating a new 'angle' DataArray.
+
+        Parameters
+        ----------
+        streaks : xarray.Dataset
+            Dataset containing the streaks.
+
+        Returns
+        -------
+        xarray.Dataset
+            Dataset containing the streaks with wind direction in meteorological convention.
+
+        """
         streaks_meteo = self.xr_dataset[['longitude', 'latitude', 'ground_heading', 'ancillary_wind']].interp(
             line=streaks.line,
             sample=streaks.sample,
@@ -212,10 +256,20 @@ class GradientFeatures:
         return streaks_meteo
 
     def streaks_smooth_mean(self):
-        """Smooth the histograms individually, compute the mean"""
+        """
+        Compute streaks by smoothing the histograms first and then computing the mean.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray containing the streaks.           
+        """
 
         try:
-            # Smooth the histograms individually
             hist_smooth = self.hist.copy()
             hist_smooth['weight'] = xsarsea.gradients.circ_smooth(
                 hist_smooth['weight'])
@@ -247,7 +301,7 @@ class GradientFeatures:
                 streaks_smooth_mean, self.xr_dataset_100)
 
             # Convert to meteo convention
-            streaks_smooth_mean = self.convert_to_streaks_meteo(
+            streaks_smooth_mean = self.convert_to_meteo_convention(
                 streaks_smooth_mean)
 
             # Set attributes
@@ -268,7 +322,18 @@ class GradientFeatures:
             return streaks_dir_smooth_mean_interp
 
     def streaks_mean_smooth(self):
-        """Compute the mean of the histograms and then smooth the mean histogram."""
+        """
+        Compute streaks by meaning the histograms first and then smoothing.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray containing the streaks.           
+        """
         try:
             # Compute the mean of the histograms
             hist_mean = self.hist.copy().mean(
@@ -302,7 +367,7 @@ class GradientFeatures:
                 streaks_mean_smooth, self.xr_dataset_100)
 
             # Convert to meteo convention
-            streaks_mean_smooth = self.convert_to_streaks_meteo(
+            streaks_mean_smooth = self.convert_to_meteo_convention(
                 streaks_mean_smooth)
 
             # Set attributes
@@ -323,8 +388,18 @@ class GradientFeatures:
             return streaks_mean_smooth
 
     def streaks_individual(self):
-        """Smooth the histograms individually. Only smooth the histograms, do not compute the mean."""
+        """
+        Compute streaks by smoothing the histogram.
 
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        xarray.DataArray
+            DataArray containing the individual streaks for each window_size, downscale_factor, polarisation (no combination).           
+        """
         try:
             # Compute the mean of the histograms
             hist_smooth = self.hist.copy()
@@ -352,7 +427,7 @@ class GradientFeatures:
                 streaks_individual, self.xr_dataset_100)
 
             # Convert to meteo convention
-            streaks_individual = self.convert_to_streaks_meteo(
+            streaks_individual = self.convert_to_meteo_convention(
                 streaks_individual)
 
             # Set attributes
