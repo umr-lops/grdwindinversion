@@ -122,7 +122,7 @@ class GradientFeatures:
                     new_dataArrays[varname_400_copol_mask] & new_dataArrays[varname_800_crosspol_mask], 3, new_dataArrays["heterogeneity_mask"])
 
                 # Cas 1 : Co-polarization only
-                new_dataArrays["heterogeneity_mask"] = xr.where(
+                self.xr_dataset["heterogeneity_mask"] = xr.where(
                     new_dataArrays[varname_400_copol_mask] & ~new_dataArrays[varname_800_crosspol_mask], 1, new_dataArrays["heterogeneity_mask"])
 
                 # Cas 2 : Cross-polarization only
@@ -168,19 +168,6 @@ class GradientFeatures:
 
             return new_dataArrays
 
-    def _interpolate_and_mask(self, streaks, dataset):
-        """Interpolate streaks to match the xr_dataset grid and apply land mask."""
-        # Interpolate to match the original dataset grid
-        streaks_dir_interp = streaks['angle'].interp(
-            line=dataset.line,
-            sample=dataset.sample
-        )
-        # Apply land mask
-        streaks_dir_interp = xr.where(
-            dataset['land_mask'], np.nan, streaks_dir_interp
-        )
-        return streaks_dir_interp
-
     def _remove_ambiguity(self, streaks, dataset_hr):
         """
         Remove direction ambiguity using ancillary wind data.
@@ -190,27 +177,11 @@ class GradientFeatures:
         - dataset_hr: xarray.Dataset containing the ancillary wind data.
         """
 
-        # Select ancillary wind data matching the streaks coordinates
-
-        try:
-
-            ancillary_wind = dataset_hr['ancillary_wind'].sel(
-                line=streaks.line,
-                sample=streaks.sample,
-                method='nearest'
-            ).compute()
-
-        except Exception as e:
-            logging.warn(
-                "Warning in _remove_ambiguity\nProbably because 1 is not in downscale factor and so lines are not aligned. interpolating ; error : %s", e)
-
-            ancillary_wind = dataset_hr['ancillary_wind'].interp(
-                line=streaks.line,
-                sample=streaks.sample,
-                method='nearest'
-            ).compute()
-
-            return streaks
+        ancillary_wind = self.xr_dataset['ancillary_wind'].interp(
+            line=streaks.line,
+            sample=streaks.sample,
+            method='nearest'
+        ).compute()
 
         # Convert angles to complex numbers
         streaks_c = streaks['weight'] * np.exp(1j * streaks['angle'])
@@ -225,6 +196,20 @@ class GradientFeatures:
         streaks['weight'] = np.abs(streaks_c)
         streaks['angle'] = xr.apply_ufunc(np.angle, streaks_c)
         return streaks
+
+    def convert_to_streaks_meteo(self, streaks):
+        # select needed variables in original dataset, and map them to streaks dataset
+        streaks_meteo = self.xr_dataset[['longitude', 'latitude', 'ground_heading', 'ancillary_wind']].interp(
+            line=streaks.line,
+            sample=streaks.sample,
+            method='nearest')
+
+        streaks_meteo['angle'] = xsarsea.dir_sample_to_meteo(
+            np.rad2deg(streaks['angle']), streaks_meteo['ground_heading'])
+        streaks_meteo['angle'].attrs[
+            'winddir_convention'] = "Wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east"
+
+        return streaks_meteo
 
     def streaks_smooth_mean(self):
         """Smooth the histograms individually, compute the mean"""
@@ -261,19 +246,14 @@ class GradientFeatures:
             streaks_smooth_mean = self._remove_ambiguity(
                 streaks_smooth_mean, self.xr_dataset_100)
 
-            # Interpolate to match the original dataset grid
-            streaks_dir_smooth_mean_interp = self._interpolate_and_mask(
-                streaks_smooth_mean, self.xr_dataset)
+            # Convert to meteo convention
+            streaks_smooth_mean = self.convert_to_streaks_meteo(
+                streaks_smooth_mean)
 
             # Set attributes
-            streaks_dir_smooth_mean_interp.attrs['comment'] = (
-                'Angle in radians, anticlockwise from 0=line; smoothed then mean solution'
-            )
-            streaks_dir_smooth_mean_interp.attrs['description'] = (
-                'Wind direction estimated from local gradient; histograms smoothed first, then mean computed'
-            )
+            streaks_smooth_mean['angle'].attrs['description'] = 'Wind direction estimated from local gradient; histograms smoothed first, then mean computed'
 
-            return streaks_dir_smooth_mean_interp
+            return streaks_smooth_mean
 
         except Exception as e:
             logging.error("Error in streaks_smooth_mean: %s", e)
@@ -320,30 +300,27 @@ class GradientFeatures:
             # Remove ambiguity with ancillary wind
             streaks_mean_smooth = self._remove_ambiguity(
                 streaks_mean_smooth, self.xr_dataset_100)
-            # Interpolate to match the original dataset grid
-            streaks_dir_mean_smooth_interp = self._interpolate_and_mask(
-                streaks_mean_smooth, self.xr_dataset)
+
+            # Convert to meteo convention
+            streaks_mean_smooth = self.convert_to_streaks_meteo(
+                streaks_mean_smooth)
 
             # Set attributes
-            streaks_dir_mean_smooth_interp.attrs['comment'] = (
-                'Angle in radians, anticlockwise from 0=line; mean then smoothed solution'
-            )
-            streaks_dir_mean_smooth_interp.attrs['description'] = (
-                'Wind direction estimated from local gradient; mean computed first, then histogram smoothed'
-            )
+            streaks_mean_smooth['angle'].attrs['description'] = 'Wind direction estimated from local gradient; histograms mean first, then smooth computed'
 
-            return streaks_dir_mean_smooth_interp
+            return streaks_mean_smooth
+
         except Exception as e:
             logging.error("Error in streaks_mean_smooth: %s", e)
 
-            streaks_dir_mean_smooth_interp = xr.DataArray(data=np.nan * np.ones([len(self.xr_dataset.coords[dim]) for dim in ['line', 'sample']]),
-                                                          dims=[
+            streaks_mean_smooth = xr.DataArray(data=np.nan * np.ones([len(self.xr_dataset.coords[dim]) for dim in ['line', 'sample']]),
+                                               dims=[
                 'line', 'sample'],
                 coords=[self.xr_dataset.coords[dim]
                         for dim in ['line', 'sample']],
                 attrs={"comment": "no streaks_mean_smooth found"})
 
-            return streaks_dir_mean_smooth_interp
+            return streaks_mean_smooth
 
     def streaks_individual(self):
         """Smooth the histograms individually. Only smooth the histograms, do not compute the mean."""
@@ -374,27 +351,23 @@ class GradientFeatures:
             streaks_individual = self._remove_ambiguity(
                 streaks_individual, self.xr_dataset_100)
 
-            # Interpolate to match the original dataset grid
-            streaks_dir_individual_interp = self._interpolate_and_mask(
-                streaks_individual, self.xr_dataset)
+            # Convert to meteo convention
+            streaks_individual = self.convert_to_streaks_meteo(
+                streaks_individual)
 
             # Set attributes
-            streaks_dir_individual_interp.attrs['comment'] = (
-                'Angle in radians, anticlockwise from 0=line; individual solutions'
-            )
-            streaks_dir_individual_interp.attrs['description'] = (
-                'Wind direction estimated from local gradient for each individual solution; histograms smoothed individually'
-            )
-            return streaks_dir_individual_interp
+            streaks_individual['angle'].attrs['description'] = 'Wind direction estimated from local gradient for each individual solution; histograms smoothed individually'
+
+            return streaks_individual
 
         except Exception as e:
             logging.error("Error in streaks_individual: %s", e)
 
-            streaks_dir_individual_interp = xr.DataArray(data=np.nan * np.ones([len(self.xr_dataset.coords[dim]) for dim in ['line', 'sample']]),
-                                                         dims=[
+            streaks_individual = xr.DataArray(data=np.nan * np.ones([len(self.xr_dataset.coords[dim]) for dim in ['line', 'sample']]),
+                                              dims=[
                 'line', 'sample'],
                 coords=[self.xr_dataset.coords[dim]
                         for dim in ['line', 'sample']],
                 attrs={"comment": "no streaks_individual found"})
 
-            return streaks_dir_individual_interp
+            return streaks_individual

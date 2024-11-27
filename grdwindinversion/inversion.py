@@ -743,9 +743,9 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         *xr_dataset['ancillary_wind_direction'].dims)
     xr_dataset['ancillary_wind_direction'].attrs = {}
     xr_dataset['ancillary_wind_direction'].attrs['units'] = 'degrees_north'
-    xr_dataset['ancillary_wind_direction'].attrs['long_name'] = f'{ancillary_name} wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east'
+    xr_dataset['ancillary_wind_direction'].attrs[
+        'long_name'] = f'{ancillary_name} wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east'
     xr_dataset['ancillary_wind_direction'].attrs['standart_name'] = 'wind_direction'
-    
 
     xr_dataset['ancillary_wind_speed'] = np.sqrt(
         xr_dataset['model_U10']**2+xr_dataset['model_V10']**2)
@@ -918,11 +918,13 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
             config)
         xr_dataset = xr_dataset.merge(dataArraysHeterogeneity)
 
-        # Create your streaks dataset
+        # Create streaks dataset
         xr_dataset_streaks = xr.Dataset({
-            'dir_smooth': gradientFeatures.streaks_individual(),
-            'dir_mean_smooth': gradientFeatures.streaks_mean_smooth(),
-            'dir_smooth_mean': gradientFeatures.streaks_smooth_mean(),
+            'longitude': gradientFeatures.streaks_individual().longitude,
+            'latitude': gradientFeatures.streaks_individual().latitude,
+            'dir_smooth': gradientFeatures.streaks_individual().angle,
+            'dir_mean_smooth': gradientFeatures.streaks_mean_smooth().angle,
+            'dir_smooth_mean': gradientFeatures.streaks_smooth_mean().angle,
         })
     else:
         xr_dataset_streaks = None
@@ -1053,7 +1055,7 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
 
     xr_dataset, encoding = makeL2asOwi(
         xr_dataset, config)
-    
+
     xr_dataset = xr_dataset.compute()
     #  add attributes
     firstMeasurementTime = None
