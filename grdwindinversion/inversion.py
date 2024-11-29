@@ -636,6 +636,11 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         logging.error(e)
         sys.exit(-1)
 
+    #  add parameters in config
+    config["meta"] = meta
+    config["fct_dataset"] = fct_dataset
+    config["map_model"] = map_model
+
     # load
     xr_dataset = xr_dataset.load()
 
@@ -867,73 +872,109 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
 
             apply_lut_to_dataset()
 
-    if add_gradientsfeatures:
-        from grdwindinversion.streaks import GradientFeatures
+    return xr_dataset, out_file, config
 
-        xsar_dataset_100 = fct_dataset(
-            meta, resolution='100m')
 
-        xr_dataset_100 = xsar_dataset_100.datatree['measurement'].to_dataset()
-        xr_dataset_100 = xr_dataset_100.rename(map_model)
-        # load dataset
-        xr_dataset_100 = xr_dataset_100.load()
+def process_gradients(xr_dataset, config):
+    """
+    Function to process gradients features.
 
-        # adding sigma0 detrend
-        xr_dataset_100['sigma0_detrend'] = xsarsea.sigma0_detrend(
-            xr_dataset_100.sigma0.sel(pol=copol), xr_dataset_100.incidence, model=model_co)
+    Parameters
+    ----------
+    xr_dataset : xarray.Dataset
+        Main dataset to process.
+    meta : object
+        Metadata from the original dataset.
+    fct_dataset : callable
+        Function to load the dataset.
+    map_model : dict
+        Mapping model for renaming variables.
+    config : dict
+        Configuration dictionary.
 
-        if dual_pol:
-            xr_dataset_100['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
-                xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_cross)
+    Returns
+    -------
+    tuple
+        Updated xr_dataset and xr_dataset_streaks dataset.
+    """
+    from grdwindinversion.gradientFeatures import GradientFeatures
 
-            sigma0_detrend_combined = xr.concat(
-                [xr_dataset_100['sigma0_detrend'],
-                    xr_dataset_100['sigma0_detrend_cross']],
-                dim='pol'
-            )
-            sigma0_detrend_combined['pol'] = [copol, crosspol]
+    meta = config["meta"]
+    fct_dataset = config["fct_dataset"]
+    map_model = config["map_model"]
 
-            xr_dataset_100['sigma0_detrend'] = sigma0_detrend_combined
+    model_co = config["l2_params"]["model_co"]
+    model_cross = config["l2_params"]["model_cross"]
+    copol = config["l2_params"]["copol"]
+    crosspol = config["l2_params"]["crosspol"]
+    dual_pol = config["l2_params"]["dual_pol"]
 
-        xr_dataset_100.land_mask.values = binary_dilation(xr_dataset_100['land_mask'].values.astype('uint8'),
-                                                          structure=np.ones((3, 3), np.uint8), iterations=3)
-        xr_dataset_100['sigma0_detrend'] = xr.where(
-            xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0']).transpose(*xr_dataset_100['sigma0'].dims)
+    # Load the 100m dataset
+    xsar_dataset_100 = fct_dataset(
+        meta, resolution='100m')
 
-        xr_dataset_100['ancillary_wind'] = (
-            xr_dataset_100.model_U10 + 1j * xr_dataset_100.model_V10) * np.exp(1j * np.deg2rad(xr_dataset_100.ground_heading))
+    xr_dataset_100 = xsar_dataset_100.datatree['measurement'].to_dataset()
+    xr_dataset_100 = xr_dataset_100.rename(map_model)
+    # load dataset
+    xr_dataset_100 = xr_dataset_100.load()
 
-        downscales_factors = [1, 2, 4, 8]
-        # 4 and 8 must be in downscales_factors
-        assert all([x in downscales_factors for x in [4, 8]])
+    # adding sigma0 detrend
+    xr_dataset_100['sigma0_detrend'] = xsarsea.sigma0_detrend(
+        xr_dataset_100.sigma0.sel(pol=copol), xr_dataset_100.incidence, model=model_co)
 
-        gradientFeatures = GradientFeatures(
-            xr_dataset=xr_dataset,
-            xr_dataset_100=xr_dataset_100,
-            windows_sizes=[1600, 3200],
-            downscales_factors=downscales_factors,
-            window_step=1
+    if dual_pol:
+        xr_dataset_100['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
+            xr_dataset_100.sigma0.sel(pol=crosspol), xr_dataset_100.incidence, model=model_cross)
+
+        sigma0_detrend_combined = xr.concat(
+            [xr_dataset_100['sigma0_detrend'],
+                xr_dataset_100['sigma0_detrend_cross']],
+            dim='pol'
         )
-        dataArraysHeterogeneity = gradientFeatures.get_heterogeneity_mask(
-            config)
-        xr_dataset = xr_dataset.merge(dataArraysHeterogeneity)
+        sigma0_detrend_combined['pol'] = [copol, crosspol]
 
-        # Create streaks dataset
-        streaks_indiv = gradientFeatures.streaks_individual()
-        if 'longitude' in streaks_indiv:
-            xr_dataset_streaks = xr.Dataset({
-                'longitude': streaks_indiv.longitude,
-                'latitude': streaks_indiv.latitude,
-                'dir_smooth': streaks_indiv.angle,
-                'dir_mean_smooth': gradientFeatures.streaks_mean_smooth().angle,
-                'dir_smooth_mean': gradientFeatures.streaks_smooth_mean().angle,
-            })
-        else:
-            xr_dataset_streaks = None
+        xr_dataset_100['sigma0_detrend'] = sigma0_detrend_combined
+
+    xr_dataset_100.land_mask.values = binary_dilation(xr_dataset_100['land_mask'].values.astype('uint8'),
+                                                      structure=np.ones((3, 3), np.uint8), iterations=3)
+    xr_dataset_100['sigma0_detrend'] = xr.where(
+        xr_dataset_100['land_mask'], np.nan, xr_dataset_100['sigma0']).transpose(*xr_dataset_100['sigma0'].dims)
+
+    xr_dataset_100['ancillary_wind'] = (
+        xr_dataset_100.model_U10 + 1j * xr_dataset_100.model_V10) * np.exp(1j * np.deg2rad(xr_dataset_100.ground_heading))
+
+    downscales_factors = [1, 2, 4, 8]
+    # 4 and 8 must be in downscales_factors
+    assert all([x in downscales_factors for x in [4, 8]])
+
+    gradientFeatures = GradientFeatures(
+        xr_dataset=xr_dataset,
+        xr_dataset_100=xr_dataset_100,
+        windows_sizes=[1600, 3200],
+        downscales_factors=downscales_factors,
+        window_step=1
+    )
+
+    # Compute heterogeneity mask and variables
+    dataArraysHeterogeneity = gradientFeatures.get_heterogeneity_mask(config)
+    xr_dataset = xr_dataset.merge(dataArraysHeterogeneity)
+
+    # Add streaks dataset
+    streaks_indiv = gradientFeatures.streaks_individual()
+    if 'longitude' in streaks_indiv:
+        xr_dataset_streaks = xr.Dataset({
+            'longitude': streaks_indiv.longitude,
+            'latitude': streaks_indiv.latitude,
+            'dir_smooth': streaks_indiv.angle,
+            'dir_mean_smooth': gradientFeatures.streaks_mean_smooth().angle,
+            'dir_smooth_mean': gradientFeatures.streaks_smooth_mean().angle,
+        })
     else:
+        logger.warn(
+            "'longitude' not found in streaks_indiv : there is probably an error")
         xr_dataset_streaks = None
 
-    return xr_dataset, xr_dataset_streaks, out_file, config
+    return xr_dataset, xr_dataset_streaks
 
 
 @timing(logger=logger.info)
@@ -964,8 +1005,14 @@ def makeL2(filename, outdir, config_path, overwrite=False, generateCSV=True, res
         final dataset
     """
 
-    xr_dataset, xr_dataset_streaks, out_file, config = preprocess(
+    xr_dataset, out_file, config = preprocess(
         filename, outdir, config_path, overwrite, resolution)
+
+    if config["add_gradientsfeatures"]:
+        xr_dataset, xr_dataset_streaks = process_gradients(
+            xr_dataset, config)
+    else:
+        xr_dataset_streaks = None
 
     model_co = config["l2_params"]["model_co"]
     model_cross = config["l2_params"]["model_cross"]
