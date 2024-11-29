@@ -17,11 +17,11 @@
 # relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
 #
+import grdwindinversion
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
-import grdwindinversion
 
 # -- General configuration ---------------------------------------------
 
@@ -43,6 +43,12 @@ extensions = [
     'sphinxcontrib.mermaid',
     'nbsphinx',
     'jupyter_sphinx',
+    'myst_parser'
+]
+myst_enable_extensions = [
+    "deflist",        # Pour les listes de définitions
+    "linkify",        # Pour rendre les URLs cliquables automatiquement
+    "colon_fence",    # Pour activer des blocs ::: comme Markdown GFM
 ]
 # order by source
 autodoc_member_order = 'bysource'
@@ -69,7 +75,12 @@ templates_path = ['_templates']
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+# source_suffix = '.rst'
+
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
 
 # The master toctree document.
 master_doc = 'index'
@@ -112,8 +123,11 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
-#html_theme = 'sphinx_rtd_theme'
+# html_theme = 'alabaster'
+# html_theme = 'sphinx_rtd_theme'
+# html_theme = 'furo'
+html_theme = 'sphinx_rtd_theme'
+
 
 # Theme options are theme-specific and customize the look and feel of a
 # theme further.  For a list of options available for each theme, see the
@@ -125,8 +139,12 @@ html_theme = 'alabaster'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-#html_style = 'css/grdwindinversion.css'
+html_style = 'css/grdwindinversion.css'
+# html_style = 'css/xsarsea.css'
 
+html_theme_options = {
+    'logo_only': False,
+}
 # -- Options for HTMLHelp output ---------------------------------------
 
 # Output file base name for HTML help builder.
@@ -187,6 +205,3 @@ texinfo_documents = [
      'One line description of project.',
      'Miscellaneous'),
 ]
-
-
-
