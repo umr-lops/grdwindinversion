@@ -471,7 +471,6 @@ def makeL2asOwi(xr_dataset, config):
             0, 1, 2, 3])
         xr_dataset['owiWindFilter'].attrs[
             'flag_meanings'] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
-        xr_dataset['owiWindFilter'].attrs['comment'] = 'NOT COMPUTED YET'
 
     #  other variables
 
@@ -589,6 +588,10 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
 
     if "add_nrcs_model" in config_base:
         add_nrcs_model = config_base["add_nrcs_model"]
+        add_nrcs_model = False
+        logging.warning(
+            f'Force this variable to be false, before fixing the issue'
+        )
     else:
         add_nrcs_model = False
         logging.warning(
