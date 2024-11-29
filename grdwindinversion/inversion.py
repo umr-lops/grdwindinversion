@@ -44,10 +44,16 @@ def getSensorMetaDataset(filename):
         return "S1B", "SENTINEL-1 B", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
     elif ("RS2" in filename):
         return "RS2", "RADARSAT-2", xsar.RadarSat2Meta, xsar.RadarSat2Dataset
-    elif ("RCM" in filename):
-        return "RCM", "RADARSAT Constellation", xsar.RcmMeta, xsar.RcmDataset
+    elif ("RCM1" in filename):
+        return "RCM", "RADARSAT Constellation 1", xsar.RcmMeta, xsar.RcmDataset
+    elif ("RCM2" in filename):
+        return "RCM", "RADARSAT Constellation 2", xsar.RcmMeta, xsar.RcmDataset
+    elif ("RCM3" in filename):
+        return "RCM", "RADARSAT Constellation 3", xsar.RcmMeta, xsar.RcmDataset
+
     else:
-        raise ValueError("must be S1A|S1B|RS2|RCM, got filename %s" % filename)
+        raise ValueError(
+            "must be S1A|S1B|RS2|RCM1|RCM2|RCM3, got filename %s" % filename)
 
 
 def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
@@ -676,6 +682,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
     config["l2_params"]["model_co"] = model_co
     config["l2_params"]["model_cross"] = model_cross
     config["sensor_longname"] = sensor_longname
+    config["sensor"] = sensor
 
     # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
