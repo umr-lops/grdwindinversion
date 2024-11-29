@@ -364,7 +364,7 @@ class GradientFeatures:
 
             # Remove ambiguity with ancillary wind
             streaks_mean_smooth = self._remove_ambiguity(
-                streaks_mean_smooth, self.xr_dataset_100)
+                streaks_mean_smooth)
 
             # Convert to meteo convention
             streaks_mean_smooth = self.convert_to_meteo_convention(
@@ -424,7 +424,7 @@ class GradientFeatures:
 
             # Remove ambiguity with ancillary wind for each individual solution
             streaks_individual = self._remove_ambiguity(
-                streaks_individual, self.xr_dataset_100)
+                streaks_individual)
 
             # Convert to meteo convention
             streaks_individual = self.convert_to_meteo_convention(
