@@ -21,9 +21,9 @@ rs2_path = getConf()['unit_test_rs2_product']
 print('S1_path',S1_path)
 def test_makeL2_generation():
     l1_files = [
-        xsar.get_test_file(S1_path),
-        xsar.get_test_file(rcm_path),
-        xsar.get_test_file(rs2_path)
+        S1_path,
+        rcm_path,
+        rs2_path
     ]
 
     # l1_files = [
