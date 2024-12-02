@@ -23,10 +23,12 @@ Functions description
    :maxdepth: 2
    :caption: Contents:
 
-   readme
+   ../README
    installation
    usage
    examples/wind-inversion-from-grd
+   examples/streaks-display
+
    algorithm
    modules
    contributing

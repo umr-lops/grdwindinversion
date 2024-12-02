@@ -11,9 +11,9 @@ jobs:
     if: github.repository == 'umr-lops/grdwindinversion'
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
       - name: Install dependencies
@@ -22,12 +22,12 @@ jobs:
           python -m pip install build twine
       - name: Build
         run: |
-          python -m build --sdist --outdir dist/ .
+          python -m build --sdist --wheel --outdir dist/ .
       - name: Check the built archives
         run: |
           twine check dist/*
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: packages
           path: dist/*
@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: packages
           path: dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@b7f401de30cb6434a1e19f805ff006643653240e
+        uses: pypa/gh-action-pypi-publish@81e9d935c883d0b210363ab89cf05f3894778450

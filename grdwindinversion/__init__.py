@@ -6,6 +6,8 @@ __all__ = ['inversion']
 # __version__ = metadata.version('grdwindinversion')
 from grdwindinversion import *
 from importlib.metadata import version
+from grdwindinversion.inversion import inverse
+
 try:
     __version__ = version("grdwindinversion")
 except Exception:

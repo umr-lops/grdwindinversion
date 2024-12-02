@@ -1,6 +1,6 @@
 no_subdir: True
 winddir_convention: "meteorological"
-add_gradientsfeatures: False
+add_gradientsfeatures: True
 add_nrcs_model: False
 S1A:
     GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"

@@ -1,0 +1,36 @@
+package:
+  name: "grdwindinversion"
+  version: {{ environ.get('GIT_DESCRIBE_TAG', 0)}}
+
+source:
+  path: ../.
+
+build:
+  noarch: python
+  number: 0
+  script: {{ PYTHON }} -m pip install . --no-deps -vv
+
+requirements:
+  build:
+    - python >=3.9,<3.11
+    - setuptools_scm
+    - setuptools
+
+  run:
+    - python >=3.9,<3.11
+    - xsar
+    - xsarsea
+    - xarray
+    - rioxarray
+    - numpy
+    - pyyaml
+    - scipy
+    - fsspec
+    - aiohttp
+    - xarray-safe-s1
+    - xarray-safe-rcm
+    - xradarsat2
+
+about:
+  home: https://github.com/umr-lops/grdwindinversion
+  summary: 'python library to compute wind speed from GRD SAR images'
