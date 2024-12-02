@@ -1,5 +1,8 @@
-#'ecmwf_0100_1h': '../ecmwf/forecast/hourly/0100deg/netcdf_light_REPRO_tree/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc'
-#'ecmwf_0125_1h': '../ecmwf/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc'
+'ecmwf_0100_1h': '../ecmwf/forecast/hourly/0100deg/netcdf_light_REPRO_tree/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc'
+'ecmwf_0125_1h': '../ecmwf/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc'
 
-'ecmwf_0100_1h': '/home/datawork-cersat-public/provider/ecmwf/forecast/hourly/0100deg/netcdf_light_REPRO_tree/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc'
-'ecmwf_0125_1h': '/home/datawork-cersat-intranet/project/ecmwf/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc'
+
+unit_test_s1_product: './sentinel-1a/L1/IW/S1A_IW_GRDH_1S/2021/252/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE'
+unit_test_rcm_product: './l1/rcm/rcm-1/sclnd/2023/273/RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD'
+unit_test_rs2_product: './L1/VV_VH/2022/247/RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF'
+

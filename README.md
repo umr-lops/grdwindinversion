@@ -1,4 +1,3 @@
-# grdwindinversion
 
 [![Python Version](https://img.shields.io/pypi/pyversions/grdwindinversion.svg)](https://pypi.org/project/grdwindinversion/)
 [![Dependencies Status](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)](https://github.com/umr-lops/grdwindinversion/pulls?utf8=%E2%9C%93&q=is%3Apr%20author%3Aapp%2Fdependabot)
