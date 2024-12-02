@@ -1,13 +1,13 @@
 no_subdir: True
-convention: "meteorological"
+winddir_convention: "meteorological"
 add_gradientsfeatures: True
-add_nrcs_model: False
+add_nrcs_model: True
 S1A:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"
     dsig_VH_NAME: "gmf_s1_v2"
     apply_flattening: True
-    recalibration: False
+    recalibration: True
     ancillary: "ecmwf"
     inc_step: 0.1
     wspd_step: 0.1
@@ -18,7 +18,7 @@ S1B:
     GMF_VH_NAME: "gmf_s1_v2"
     dsig_VH_NAME: "gmf_s1_v2"
     apply_flattening: True
-    recalibration: False
+    recalibration: True
     ancillary: "ecmwf"
     inc_step: 0.1
     wspd_step: 0.1
@@ -29,7 +29,7 @@ RS2:
     GMF_VH_NAME: "gmf_rs2_v2"
     dsig_VH_NAME: "gmf_rs2_v2"
     apply_flattening: False
-    recalibration: False
+    recalibration: True
     ancillary: "ecmwf"
     inc_step: 0.1
     wspd_step: 0.1
@@ -40,7 +40,7 @@ RCM:
     GMF_VH_NAME: "gmf_rcm_noaa"
     dsig_VH_NAME: "gmf_s1_v2"
     apply_flattening: True
-    recalibration: False
+    recalibration: True
     ancillary: "ecmwf"
     inc_step: 0.1
     wspd_step: 0.1
