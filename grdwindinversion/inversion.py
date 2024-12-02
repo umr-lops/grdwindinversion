@@ -206,7 +206,7 @@ def makeL2(filename, out_folder, config_path, overwrite=False, generateCSV=True)
     except Exception as e:
         logging.info('%s', traceback.format_exc())
         logging.error(e)
-        sys.exit(-1)
+        raise e
 
     # variables to not keep in the L2
     black_list = ['digital_number', 'gamma0_raw', 'negz',
