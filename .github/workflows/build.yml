@@ -29,6 +29,12 @@ jobs:
           conda activate base
           conda install -y -c conda-forge conda-build anaconda-client
 
+      - name: Set version without 'v'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "GIT_DESCRIBE_TAG=${VERSION}" >> $GITHUB_ENV
+
       - name: Build and Upload Conda package
         env:
           ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
