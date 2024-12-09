@@ -33,7 +33,11 @@ jobs:
 
       - name: Set version without 'v'
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF_NAME#v}
+          else
+            VERSION="0.0.0"  # Dummy version for testing
+          fi
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "GIT_DESCRIBE_TAG=${VERSION}" >> $GITHUB_ENV
 
