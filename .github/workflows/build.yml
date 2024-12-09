@@ -4,10 +4,12 @@ on:
   release:
     types:
       - created
+  push:
+    # Triggers on push to any branch
 
 jobs:
   build-and-upload-conda-package:
-    if: true 
+    if: contains(github.event.head_commit.message, '[force-build]') || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     #${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
