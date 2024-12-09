@@ -101,7 +101,7 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     elif sensor == 'RCM':
         regex = re.compile(
-            r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$")
+            r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z0-9]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$")
         match = regex.match(basename_match)
         MISSIONID, DATA1, DATA2, DATA3, BEAM, DATE, TIME, POLARIZATION, PRODUCT = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
