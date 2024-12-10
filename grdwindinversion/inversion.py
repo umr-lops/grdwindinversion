@@ -87,6 +87,10 @@ def getOutputName(input_file, outdir, sensor, meta_start_date, meta_stop_date, s
         template = string.Template(
             "${MISSIONID}_${BEAM}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POL}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE")
         match = regex.match(basename_match)
+        if not match:
+            raise AttributeError(
+                f"S1 file {basename_match} does not match the expected pattern")
+
         MISSIONID, BEAM, PRODUCT, RESOLUTION, LEVEL, CLASS, POL, STARTDATE, STOPDATE, ORBIT, TAKEID, PRODID = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
     elif sensor == 'RS2':
@@ -95,6 +99,10 @@ def getOutputName(input_file, outdir, sensor, meta_start_date, meta_stop_date, s
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION}_${LAST}")
         match = regex.match(basename_match)
+        if not match:
+            raise AttributeError(
+                f"RC2 file {basename_match} does not match the expected pattern")
+
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     elif sensor == 'RCM':
