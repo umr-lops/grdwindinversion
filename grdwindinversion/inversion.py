@@ -56,7 +56,7 @@ def getSensorMetaDataset(filename):
             "must be S1A|S1B|RS2|RCM1|RCM2|RCM3, got filename %s" % filename)
 
 
-def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
+def getOutputName(input_file, outdir, sensor, meta_start_date, meta_stop_date, subdir=True):
     """
     Create output filename for L2-GRD product
 
@@ -68,8 +68,10 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         output folder
     sensor : str
         sensor name
-    meta : obj `xsar.BaseMeta` (one of the supported SAR mission)
-        meta object
+    start_date : str
+        start date
+    stop_date : str
+        stop date
 
     Returns
     -------
@@ -78,10 +80,6 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
     """
     basename = os.path.basename(input_file)
     basename_match = basename
-    meta_start_date = meta.start_date.split(".")[0].replace(
-        "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
-    meta_stop_date = meta.stop_date.split(".")[0].replace(
-        "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
 
     if sensor == 'S1A' or sensor == 'S1B':
         regex = re.compile(
@@ -89,6 +87,10 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         template = string.Template(
             "${MISSIONID}_${BEAM}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POL}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE")
         match = regex.match(basename_match)
+        if not match:
+            raise AttributeError(
+                f"S1 file {basename_match} does not match the expected pattern")
+
         MISSIONID, BEAM, PRODUCT, RESOLUTION, LEVEL, CLASS, POL, STARTDATE, STOPDATE, ORBIT, TAKEID, PRODID = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
     elif sensor == 'RS2':
@@ -97,14 +99,24 @@ def getOutputName2(input_file, outdir, sensor, meta, subdir=True):
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION}_${LAST}")
         match = regex.match(basename_match)
+        if not match:
+            raise AttributeError(
+                f"RC2 file {basename_match} does not match the expected pattern")
+
         MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION, LAST = match.groups()
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     elif sensor == 'RCM':
+
         regex = re.compile(
-            r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$")
+            r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z0-9]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$")
         match = regex.match(basename_match)
+        if not match:
+            raise AttributeError(
+                f"RCM file {basename_match} does not match the expected pattern")
+
         MISSIONID, DATA1, DATA2, DATA3, BEAM, DATE, TIME, POLARIZATION, PRODUCT = match.groups()
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+
     else:
         raise ValueError(
             "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
@@ -601,8 +613,13 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
     # creating a dictionnary of parameters
     config["l2_params"] = {}
 
-    out_file = getOutputName2(filename, outdir, sensor,
-                              meta, subdir=not no_subdir_cfg)
+    meta_start_date = meta.start_date.split(".")[0].replace(
+        "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
+    meta_stop_date = meta.stop_date.split(".")[0].replace(
+        "-", "").replace(":", "").replace(" ", "t").replace("Z", "")
+
+    out_file = getOutputName(filename, outdir, sensor,
+                             meta_start_date, meta_stop_date, subdir=not no_subdir_cfg)
 
     if os.path.exists(out_file) and overwrite is False:
         raise FileExistsError("outfile %s already exists" % out_file)
