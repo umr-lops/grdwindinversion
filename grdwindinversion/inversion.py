@@ -1,3 +1,17 @@
+## To place here in the code to not have errors with cv2. 
+## if placed in main => error .. 
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+try : 
+    import cv2
+except:
+    import cv2
+cv2.setNumThreads(1)
+
 import tempfile
 import traceback
 

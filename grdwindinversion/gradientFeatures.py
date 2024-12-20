@@ -1,5 +1,4 @@
 import xsarsea.gradients
-import cv2
 import xarray as xr
 import xarray as xr
 from scipy.ndimage import binary_dilation
@@ -55,6 +54,7 @@ class GradientFeatures:
         None
 
         """
+
         self.gradients = xsarsea.gradients.Gradients(
             self.xr_dataset_100['sigma0_detrend'],
             windows_sizes=self.windows_sizes,
@@ -111,8 +111,14 @@ class GradientFeatures:
                 sig = xr.where(sig <= 0, 1e-15, sig)
 
                 # map incidence for detrend
-                incidence = xr.DataArray(data=cv2.resize(
-                    self.xr_dataset_100.incidence.values, sig.shape[::-1], cv2.INTER_NEAREST), dims=sig.dims, coords=sig.coords)
+                # incidence = xr.DataArray(data=cv2.resize(
+                #    self.xr_dataset_100.incidence.values, sig.shape[::-1], cv2.INTER_NEAREST), dims=sig.dims, coords=sig.coords)
+
+                incidence = self.xr_dataset_100.incidence.interp(
+                    line=sig.coords['line'],
+                    sample=sig.coords['sample'],
+                    method="nearest"  # Équivaut à INTER_NEAREST
+                )
 
                 sigma0_detrend = xsarsea.sigma0_detrend(sig, incidence)
 
