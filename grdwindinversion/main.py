@@ -25,6 +25,12 @@ def processor_starting_point():
                         help="En cas d'activation, désactive la génération du .csv")
 
     args = parser.parse_args()
+
+
+
+        
+
+
     fmt = '%(asctime)s %(levelname)s %(filename)s(%(lineno)d) %(message)s'
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG, format=fmt,
