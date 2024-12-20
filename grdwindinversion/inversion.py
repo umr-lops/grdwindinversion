@@ -616,7 +616,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         add_nrcs_model = config_base["add_nrcs_model"]
         add_nrcs_model = False
         logging.warning(
-            f'Force this variable to be false, before fixing the issue'
+            f'Force add_nrcs_model to be false, before fixing an issue'
         )
     else:
         add_nrcs_model = False
