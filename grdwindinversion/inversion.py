@@ -1,3 +1,17 @@
+## To place here in the code to not have errors with cv2. 
+## if placed in main => error .. 
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+try : 
+    import cv2
+except:
+    import cv2
+cv2.setNumThreads(1)
+
 import tempfile
 import traceback
 
@@ -602,7 +616,7 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
         add_nrcs_model = config_base["add_nrcs_model"]
         add_nrcs_model = False
         logging.warning(
-            f'Force this variable to be false, before fixing the issue'
+            f'Force add_nrcs_model to be false, before fixing an issue'
         )
     else:
         add_nrcs_model = False
