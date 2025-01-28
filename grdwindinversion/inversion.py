@@ -436,7 +436,7 @@ def makeL2asOwi(xr_dataset, config):
             'winddir_dual': 'owiWindDirection',
             'windspeed_cross': 'owiWindSpeed_cross',
             'windspeed_dual': 'owiWindSpeed',
-            'sigma0_detrend_cross': 'owiNrcs_detrend_cross'
+            'sigma0_detrend_cross': 'owiNrcs_detrend_cross',
             'nesz_cross_flattened': 'owiNesz_cross_flattened'
         })
 
