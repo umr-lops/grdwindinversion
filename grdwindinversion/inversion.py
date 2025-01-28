@@ -1,39 +1,36 @@
-## To place here in the code to not have errors with cv2. 
-## if placed in main => error .. 
+# To place here in the code to not have errors with cv2.
+#  if placed in main => error ..
+import logging
+from grdwindinversion.load_config import getConf
+from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing
+import string
+import re
+from scipy.ndimage import binary_dilation
+import yaml
+import datetime
+import sys
+import numpy as np
+import xarray as xr
+import grdwindinversion
+from xsarsea import windspeed
+import xsarsea
+import xsar
+import traceback
+import tempfile
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
-try : 
+try:
     import cv2
 except:
     import cv2
 cv2.setNumThreads(1)
 
-import tempfile
-import traceback
 
-import xsar
-import xsarsea
-from xsarsea import windspeed
-import grdwindinversion
-import xarray as xr
-import numpy as np
-import sys
-import datetime
-import os
-import yaml
-from scipy.ndimage import binary_dilation
-
-import re
-import string
-import os
-from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing
-from grdwindinversion.load_config import getConf
 # optional debug messages
-import logging
 logger = logging.getLogger('grdwindinversion.inversion')
 logger.addHandler(logging.NullHandler())
 
@@ -440,12 +437,8 @@ def makeL2asOwi(xr_dataset, config):
             'windspeed_cross': 'owiWindSpeed_cross',
             'windspeed_dual': 'owiWindSpeed',
             'sigma0_detrend_cross': 'owiNrcs_detrend_cross'
+            'nesz_cross_flattened': 'owiNesz_cross_flattened'
         })
-
-        if config["apply_flattening"]:
-            xr_dataset = xr_dataset.rename({
-                'nesz_cross_flattened': 'owiNesz_cross_flattened',
-            })
 
         # nrcs cross
         xr_dataset['owiNrcs_cross'] = xr_dataset['sigma0_ocean'].sel(
@@ -841,11 +834,14 @@ def preprocess(filename, outdir, config_path, overwrite=False, add_gradientsfeat
 
         xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
+
+        xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
+            ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+        xr_dataset['nesz_cross_flattened'].attrs[
+            "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
+
         if config["apply_flattening"]:
-            xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
-            xr_dataset['nesz_cross_flattened'].attrs[
-                "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
+
             # dsig
             xr_dataset["dsig_cross"] = windspeed.get_dsig(config["dsig_"+crosspol_gmf+"_NAME"], xr_dataset.incidence,
                                                           xr_dataset['sigma0_ocean'].sel(pol=crosspol), xr_dataset.nesz_cross_flattened)
