@@ -4,9 +4,10 @@ import logging
 import xsarsea
 
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('grdwindinversion')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("grdwindinversion")
 
 
 mem_monitor = True
@@ -44,17 +45,19 @@ def check_incidence_range(incidence, models, **kwargs):
     rets = []
     for model_name in models:
         lut_range = xsarsea.windspeed.get_model(model_name).inc_range
-        if 'inc_range' in kwargs:
+        if "inc_range" in kwargs:
             logging.debug(
-                f"GMF {model_name} inc_range will be changed by kwargs to {kwargs['inc_range']}")
-            lut_range = kwargs['inc_range']
+                f"GMF {model_name} inc_range will be changed by kwargs to {kwargs['inc_range']}"
+            )
+            lut_range = kwargs["inc_range"]
 
         inc_range = [incidence.min(), incidence.max()]
-        if (inc_range[0] >= lut_range[0] and inc_range[1] <= lut_range[1]):
+        if inc_range[0] >= lut_range[0] and inc_range[1] <= lut_range[1]:
             rets.append(True)
         else:
             logging.warn(
-                f"incidence range {inc_range} is not within the range of the LUT of the model {model_name} {lut_range} : inversion will be approximate using LUT minmium|maximum incidences")
+                f"incidence range {inc_range} is not within the range of the LUT of the model {model_name} {lut_range} : inversion will be approximate using LUT minmium|maximum incidences"
+            )
             rets.append(False)
 
     return rets
@@ -76,26 +79,28 @@ def get_pol_ratio_name(model_co):
     """
 
     model = xsarsea.windspeed.get_model(model_co)
-    if model.pol == 'HH':
+    if model.pol == "HH":
         try:
             import re
 
             def check_format(s):
-                pattern = r'^([a-zA-Z0-9]+)_R(high|low)_hh_([a-zA-Z0-9_]+)$'
+                pattern = r"^([a-zA-Z0-9]+)_R(high|low)_hh_([a-zA-Z0-9_]+)$"
                 match = re.match(pattern, s)
                 if match:
                     vvgmf, res, polrationame = match.groups()
                     return polrationame
                 else:
                     logging.warn(
-                        f"String format is not correct for polarization ratio name = {s}\nReturning '/'")
+                        f"String format is not correct for polarization ratio name = {s}\nReturning '/'"
+                    )
                     return "/"
+
             get_pol_ratio_name = check_format(model_co)
             return get_pol_ratio_name
         except AttributeError:
             return "not_written_in_lut"
     else:
-        return '/'
+        return "/"
 
 
 def timing(logger=logger.debug):
@@ -104,7 +109,7 @@ def timing(logger=logger.debug):
     def decorator(f):
         # @wraps(f)
         def wrapper(*args, **kwargs):
-            mem_str = ''
+            mem_str = ""
             process = None
             if mem_monitor:
                 process = Process(os.getpid())
@@ -114,10 +119,11 @@ def timing(logger=logger.debug):
             endtime = time.time()
             if mem_monitor:
                 endrss = process.memory_info().rss
-                mem_str = 'mem: %+.1fMb' % ((endrss - startrss) / (1024 ** 2))
-            logger(
-                'timing %s : %.2fs. %s' % (f.__name__, endtime - starttime, mem_str))
+                mem_str = "mem: %+.1fMb" % ((endrss - startrss) / (1024**2))
+            logger("timing %s : %.2fs. %s" % (f.__name__, endtime - starttime, mem_str))
             return result
+
         wrapper.__doc__ = f.__doc__
         return wrapper
+
     return decorator
