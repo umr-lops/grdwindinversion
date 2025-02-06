@@ -1036,6 +1036,8 @@ def preprocess(
 
         xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
             ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+        xr_dataset['nesz_cross_flattened'].attrs = xr_dataset['nesz_cross'].attrs.copy()
+
         xr_dataset['nesz_cross_flattened'].attrs[
             "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
 
@@ -1047,11 +1049,11 @@ def preprocess(
                 xr_dataset["sigma0_ocean"].sel(pol=crosspol),
                 xr_dataset.nesz_cross_flattened,
             )
-            
+
             xr_dataset.dsig_cross.attrs["formula_used"] = config[
                 "dsig_" + crosspol_gmf + "_NAME"
             ]
-            
+
         else:
             # dsig
             xr_dataset["dsig_cross"] = windspeed.get_dsig(
