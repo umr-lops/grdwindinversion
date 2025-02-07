@@ -551,6 +551,9 @@ def makeL2asOwi(xr_dataset, config):
         xr_dataset.owiNesz_cross.attrs["units"] = "m^2 / m^2"
         xr_dataset.owiNesz_cross.attrs["long_name"] = "Noise Equivalent SigmaNaught"
 
+        xr_dataset.owiNesz_cross_flattened.attrs["units"] = "m^2 / m^2"
+        xr_dataset.owiNesz_cross_flattened.attrs["long_name"] = "Noise Equivalent SigmaNaught"
+
         xr_dataset["owiNrcs_cross_no_noise_correction"] = xr_dataset[
             "sigma0_ocean_raw"
         ].sel(pol=config["l2_params"]["crosspol"])
@@ -1036,7 +1039,6 @@ def preprocess(
 
         xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
             ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
-        xr_dataset['nesz_cross_flattened'].attrs = xr_dataset['nesz_cross'].attrs.copy()
 
         xr_dataset['nesz_cross_flattened'].attrs[
             "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
