@@ -1,5 +1,22 @@
-## To place here in the code to not have errors with cv2.
-## if placed in main => error ..
+# To place here in the code to not have errors with cv2.
+#  if placed in main => error ..
+import tempfile
+import traceback
+import xsar
+import xsarsea
+from xsarsea import windspeed
+import grdwindinversion
+import xarray as xr
+import numpy as np
+import sys
+import datetime
+import yaml
+from scipy.ndimage import binary_dilation
+import re
+import string
+from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing
+from grdwindinversion.load_config import getConf
+import logging
 import os
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -13,31 +30,9 @@ except:
     import cv2
 cv2.setNumThreads(1)
 
-import tempfile
-import traceback
-
-import xsar
-import xsarsea
-from xsarsea import windspeed
-import grdwindinversion
-import xarray as xr
-import numpy as np
-import sys
-import datetime
-import os
-import yaml
-from scipy.ndimage import binary_dilation
-
-import re
-import string
-import os
-from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing
-from grdwindinversion.load_config import getConf
 
 # optional debug messages
-import logging
-
-logger = logging.getLogger("grdwindinversion.inversion")
+logger = logging.getLogger('grdwindinversion.inversion')
 logger.addHandler(logging.NullHandler())
 
 
@@ -163,7 +158,8 @@ def getOutputName(
         new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
 
     else:
-        raise ValueError("sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
+        raise ValueError(
+            "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
 
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
@@ -265,7 +261,8 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         except Exception as e:
             era5_file = era5_infos["get_function"](
                 era5_infos["resource"],
-                date=datetime.datetime.strptime(meta.start_date, "%Y-%m-%d %H:%M:%S"),
+                date=datetime.datetime.strptime(
+                    meta.start_date, "%Y-%m-%d %H:%M:%S"),
             )[1]
         if not os.path.isfile(era5_file):
             raise ValueError(f"era5 file {era5_file} not found")
@@ -276,7 +273,8 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         return map_model
 
     else:
-        raise ValueError("ancillary_name must be ecmwf/era5, got %s" % ancillary_name)
+        raise ValueError(
+            "ancillary_name must be ecmwf/era5, got %s" % ancillary_name)
 
 
 @timing(logger=logger.debug)
@@ -411,7 +409,8 @@ def makeL2asOwi(xr_dataset, config):
     )
 
     if "offboresight" in xr_dataset:
-        xr_dataset = xr_dataset.rename({"offboresight": "owiOffboresightAngle"})
+        xr_dataset = xr_dataset.rename(
+            {"offboresight": "owiOffboresightAngle"})
 
     if config["add_nrcs_model"]:
         xr_dataset = xr_dataset.rename({"ancillary_nrcs": "owiAncillaryNrcs"})
@@ -515,24 +514,15 @@ def makeL2asOwi(xr_dataset, config):
         )
 
     if config["l2_params"]["dual_pol"]:
-
-        xr_dataset = xr_dataset.rename(
-            {
-                "dsig_cross": "owiDsig_cross",
-                "winddir_cross": "owiWindDirection_cross",
-                "winddir_dual": "owiWindDirection",
-                "windspeed_cross": "owiWindSpeed_cross",
-                "windspeed_dual": "owiWindSpeed",
-                "sigma0_detrend_cross": "owiNrcs_detrend_cross",
-            }
-        )
-
-        if config["apply_flattening"]:
-            xr_dataset = xr_dataset.rename(
-                {
-                    "nesz_cross_flattened": "owiNesz_cross_flattened",
-                }
-            )
+        xr_dataset = xr_dataset.rename({
+            'dsig_cross': 'owiDsig_cross',
+            'winddir_cross': 'owiWindDirection_cross',
+            'winddir_dual': 'owiWindDirection',
+            'windspeed_cross': 'owiWindSpeed_cross',
+            'windspeed_dual': 'owiWindSpeed',
+            'sigma0_detrend_cross': 'owiNrcs_detrend_cross',
+            'nesz_cross_flattened': 'owiNesz_cross_flattened'
+        })
 
         # nrcs cross
         xr_dataset["owiNrcs_cross"] = xr_dataset["sigma0_ocean"].sel(
@@ -554,11 +544,15 @@ def makeL2asOwi(xr_dataset, config):
         xr_dataset = xr_dataset.assign(
             owiNesz_cross=(
                 ["line", "sample"],
-                xr_dataset.nesz.sel(pol=config["l2_params"]["crosspol"]).values,
+                xr_dataset.nesz.sel(
+                    pol=config["l2_params"]["crosspol"]).values,
             )
         )  # no flattening
         xr_dataset.owiNesz_cross.attrs["units"] = "m^2 / m^2"
         xr_dataset.owiNesz_cross.attrs["long_name"] = "Noise Equivalent SigmaNaught"
+
+        xr_dataset.owiNesz_cross_flattened.attrs["units"] = "m^2 / m^2"
+        xr_dataset.owiNesz_cross_flattened.attrs["long_name"] = "Noise Equivalent SigmaNaught"
 
         xr_dataset["owiNrcs_cross_no_noise_correction"] = xr_dataset[
             "sigma0_ocean_raw"
@@ -599,7 +593,8 @@ def makeL2asOwi(xr_dataset, config):
             "long_name"
         ] = "Quality flag taking into account the local heterogeneity"
         xr_dataset["owiWindFilter"].attrs["valid_range"] = np.array([0, 3])
-        xr_dataset["owiWindFilter"].attrs["flag_values"] = np.array([0, 1, 2, 3])
+        xr_dataset["owiWindFilter"].attrs["flag_values"] = np.array([
+                                                                    0, 1, 2, 3])
         xr_dataset["owiWindFilter"].attrs[
             "flag_meanings"
         ] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
@@ -615,7 +610,8 @@ def makeL2asOwi(xr_dataset, config):
     xr_dataset["owiWindQuality"].attrs["flag_meanings"] = "good medium low poor"
     xr_dataset["owiWindQuality"].attrs["comment"] = "NOT COMPUTED YET"
 
-    xr_dataset = xr_dataset.rename({"line": "owiAzSize", "sample": "owiRaSize"})
+    xr_dataset = xr_dataset.rename(
+        {"line": "owiAzSize", "sample": "owiRaSize"})
 
     xr_dataset = xr_dataset.drop_vars(
         [
@@ -689,7 +685,8 @@ def preprocess(
         final dataset
     """
 
-    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(filename)
+    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
+        filename)
 
     if os.path.exists(config_path):
         with open(config_path, "r") as file:
@@ -700,7 +697,8 @@ def preprocess(
         except Exception:
             raise KeyError("sensor %s not in this config" % sensor)
     else:
-        raise FileNotFoundError("config_path do not exists, got %s " % config_path)
+        raise FileNotFoundError(
+            "config_path do not exists, got %s " % config_path)
 
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
@@ -736,7 +734,8 @@ def preprocess(
     if "add_nrcs_model" in config_base:
         add_nrcs_model = config_base["add_nrcs_model"]
         add_nrcs_model = False
-        logging.warning(f"Force add_nrcs_model to be false, before fixing an issue")
+        logging.warning(
+            f"Force add_nrcs_model to be false, before fixing an issue")
     else:
         add_nrcs_model = False
         logging.warning(f"Not computing nrcs from model by default")
@@ -955,7 +954,8 @@ def preprocess(
 
     # ancillary
     xr_dataset["ancillary_wind_direction"] = (
-        90.0 - np.rad2deg(np.arctan2(xr_dataset.model_V10, xr_dataset.model_U10)) + 180
+        90.0 - np.rad2deg(np.arctan2(xr_dataset.model_V10,
+                          xr_dataset.model_U10)) + 180
     ) % 360
 
     xr_dataset["ancillary_wind_direction"] = xr.where(
@@ -1034,21 +1034,16 @@ def preprocess(
     # processing
     if dual_pol:
 
-        xr_dataset["sigma0_detrend_cross"] = xsarsea.sigma0_detrend(
-            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross
-        )
+        xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
+            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
+
+        xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
+            ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+
+        xr_dataset['nesz_cross_flattened'].attrs[
+            "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
+
         if config["apply_flattening"]:
-            xr_dataset = xr_dataset.assign(
-                nesz_cross_flattened=(
-                    ["line", "sample"],
-                    windspeed.nesz_flattening(
-                        xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence
-                    ).data,
-                )
-            )
-            xr_dataset["nesz_cross_flattened"].attrs[
-                "comment"
-            ] = "nesz has been flattened using windspeed.nesz_flattening"
             # dsig
             xr_dataset["dsig_cross"] = windspeed.get_dsig(
                 config["dsig_" + crosspol_gmf + "_NAME"],
@@ -1056,6 +1051,11 @@ def preprocess(
                 xr_dataset["sigma0_ocean"].sel(pol=crosspol),
                 xr_dataset.nesz_cross_flattened,
             )
+
+            xr_dataset.dsig_cross.attrs["formula_used"] = config[
+                "dsig_" + crosspol_gmf + "_NAME"
+            ]
+
         else:
             # dsig
             xr_dataset["dsig_cross"] = windspeed.get_dsig(
@@ -1068,9 +1068,7 @@ def preprocess(
         xr_dataset.dsig_cross.attrs["comment"] = (
             "variable used to ponderate copol and crosspol"
         )
-        xr_dataset.dsig_cross.attrs["formula_used"] = config[
-            "dsig_" + crosspol_gmf + "_NAME"
-        ]
+
         xr_dataset.dsig_cross.attrs["apply_flattening"] = str(
             config["apply_flattening"]
         )
@@ -1126,7 +1124,8 @@ def preprocess(
 
             @timing(logger=logger.info)
             def apply_lut_to_dataset():
-                lut = xsarsea.windspeed.get_model(gmf_name).to_lut(unit="linear")
+                lut = xsarsea.windspeed.get_model(
+                    gmf_name).to_lut(unit="linear")
 
                 def lut_selection(incidence, wspd, phi):
                     if "phi" in lut.coords:
@@ -1206,7 +1205,8 @@ def process_gradients(xr_dataset, config):
         )
 
         sigma0_detrend_combined = xr.concat(
-            [xr_dataset_100["sigma0_detrend"], xr_dataset_100["sigma0_detrend_cross"]],
+            [xr_dataset_100["sigma0_detrend"],
+                xr_dataset_100["sigma0_detrend_cross"]],
             dim="pol",
         )
         sigma0_detrend_combined["pol"] = [copol, crosspol]
@@ -1517,7 +1517,8 @@ def makeL2(
             temp_out_file = tmp_file.name
 
         # Écrire xr_dataset_streaks dans le fichier temporaire
-        xr_dataset_streaks.to_netcdf(temp_out_file, mode="w", group="owiWindStreaks")
+        xr_dataset_streaks.to_netcdf(
+            temp_out_file, mode="w", group="owiWindStreaks")
 
         # Charger le fichier temporaire et l'ajouter au fichier final en tant que groupe
         with xr.open_dataset(temp_out_file, group="owiWindStreaks") as ds_streaks:
