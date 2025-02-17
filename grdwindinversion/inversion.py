@@ -101,7 +101,7 @@ def getOutputName(
             "(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
         )
         template = string.Template(
-            "${MISSIONID}_${BEAM}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POL}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE"
+            "${MISSIONID}_${SWATH}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POL}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE"
         )
         match = regex.match(basename_match)
         if not match:
@@ -111,7 +111,7 @@ def getOutputName(
 
         (
             MISSIONID,
-            BEAM,
+            SWATH,
             PRODUCT,
             RESOLUTION,
             LEVEL,
@@ -123,13 +123,14 @@ def getOutputName(
             TAKEID,
             PRODID,
         ) = match.groups()
-        new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
+        
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
     elif sensor == "RS2":
         regex = re.compile(
             "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)"
         )
         template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${DATA4}_${DATE}_${TIME}_${POLARIZATION}_${LAST}"
+            "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${SWATH}_${DATE}_${TIME}_${POLARIZATION}_${LAST}"
         )
         match = regex.match(basename_match)
         if not match:
@@ -137,7 +138,7 @@ def getOutputName(
                 f"RC2 file {basename_match} does not match the expected pattern"
             )
 
-        MISSIONID, DATA1, DATA2, DATA3, DATA4, DATE, TIME, POLARIZATION, LAST = (
+        MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, LAST = (
             match.groups()
         )
         new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
@@ -152,10 +153,10 @@ def getOutputName(
                 f"RCM file {basename_match} does not match the expected pattern"
             )
 
-        MISSIONID, DATA1, DATA2, DATA3, BEAM, DATE, TIME, POLARIZATION, PRODUCT = (
+        MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, PRODUCT = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}-{BEAM.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
 
     else:
         raise ValueError(
