@@ -18,6 +18,31 @@ except ImportError:
     mem_monitor = False
 
 
+def convert_polarization_name(pol):
+    """
+    Convert polarization name to the format used in the output filename
+    
+    Parameters
+    ----------
+    pol : str
+        polarization name
+        
+    Returns
+    ------- 
+    str
+        polarization name in the format used in the output filename (dv/dh/sv/sh/xx)
+    """
+    if pol == "VV_VH":
+        return "dv"
+    elif pol == "HH_HV":
+        return "dh"
+    elif pol == "VV":
+        return "sv"
+    elif pol == "HH":
+        return "sh"
+    else:
+        return "xx"
+
 def check_incidence_range(incidence, models, **kwargs):
     """
     Check if the incidence range of the dataset is within the range of the LUT of the model.

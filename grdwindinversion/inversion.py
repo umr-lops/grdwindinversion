@@ -14,7 +14,7 @@ import yaml
 from scipy.ndimage import binary_dilation
 import re
 import string
-from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing
+from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
 from grdwindinversion.load_config import getConf
 import logging
 import os
@@ -101,8 +101,9 @@ def getOutputName(
             "(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
         )
         template = string.Template(
-            "${MISSIONID}_${SWATH}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POL}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE"
+            "${MISSIONID}_${SWATH}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POLARIZATION}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE"
         )
+        # S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F
         match = regex.match(basename_match)
         if not match:
             raise AttributeError(
@@ -116,19 +117,20 @@ def getOutputName(
             RESOLUTION,
             LEVEL,
             CLASS,
-            POL,
+            POLARIZATION,
             STARTDATE,
             STOPDATE,
             ORBIT,
             TAKEID,
             PRODID,
         ) = match.groups()
-        
-        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-xx-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
+        # last two terms of polarization are removed
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{POLARIZATION.lower()}-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
     elif sensor == "RS2":
         regex = re.compile(
             "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)"
         )
+        # RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF
         template = string.Template(
             "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${SWATH}_${DATE}_${TIME}_${POLARIZATION}_${LAST}"
         )
@@ -141,12 +143,14 @@ def getOutputName(
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, LAST = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}--owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
     elif sensor == "RCM":
 
         regex = re.compile(
             r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z0-9]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$"
         )
+        # RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
+
         match = regex.match(basename_match)
         if not match:
             raise AttributeError(
@@ -156,7 +160,7 @@ def getOutputName(
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, PRODUCT = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-xx-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
 
     else:
         raise ValueError(
