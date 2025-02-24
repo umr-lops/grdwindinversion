@@ -1079,35 +1079,8 @@ def preprocess(
         )
 
     if (recalibration) & ("SENTINEL" in sensor_longname):
-        xr_dataset.attrs["path_aux_pp1_new"] = os.path.basename(
-            os.path.dirname(
-                os.path.dirname(
-                    xsar_dataset.datatree["recalibration"].attrs["path_aux_pp1_new"]
-                )
-            )
-        )
-        xr_dataset.attrs["path_aux_cal_new"] = os.path.basename(
-            os.path.dirname(
-                os.path.dirname(
-                    xsar_dataset.datatree["recalibration"].attrs["path_aux_cal_new"]
-                )
-            )
-        )
-
-        xr_dataset.attrs["path_aux_pp1_old"] = os.path.basename(
-            os.path.dirname(
-                os.path.dirname(
-                    xsar_dataset.datatree["recalibration"].attrs["path_aux_pp1_old"]
-                )
-            )
-        )
-        xr_dataset.attrs["path_aux_cal_old"] = os.path.basename(
-            os.path.dirname(
-                os.path.dirname(
-                    xsar_dataset.datatree["recalibration"].attrs["path_aux_cal_old"]
-                )
-            )
-        )
+        xr_dataset.attrs["aux_cal_new"] = xsar_dataset.datatree["recalibration"].attrs["aux_cal_new"]
+        xr_dataset.attrs["aux_pp1_new"] = xsar_dataset.datatree["recalibration"].attrs["aux_pp1_new"]
 
     if add_nrcs_model:
         # add timing
@@ -1482,12 +1455,7 @@ def makeL2(
         "coverage": xr_dataset.attrs["coverage"],
     }
 
-    for recalib_attrs in [
-        "path_aux_pp1_new",
-        "path_aux_pp1_old",
-        "path_aux_cal_new",
-        "path_aux_cal_old",
-    ]:
+    for recalib_attrs in ["aux_pp1_new", "aux_pp1", "aux_cal_new", "aux_cal"]:
         if recalib_attrs in xr_dataset.attrs:
             attrs[recalib_attrs] = xr_dataset.attrs[recalib_attrs]
 
