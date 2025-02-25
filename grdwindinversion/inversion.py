@@ -1079,8 +1079,8 @@ def preprocess(
         )
 
     if (recalibration) & ("SENTINEL" in sensor_longname):
-        xr_dataset.attrs["aux_cal_new"] = xsar_dataset.datatree["recalibration"].attrs["aux_cal_new"]
-        xr_dataset.attrs["aux_pp1_new"] = xsar_dataset.datatree["recalibration"].attrs["aux_pp1_new"]
+        xr_dataset.attrs["aux_cal_recal"] = xsar_dataset.datatree["recalibration"].attrs["aux_cal_new"]
+        xr_dataset.attrs["aux_pp1_recal"] = xsar_dataset.datatree["recalibration"].attrs["aux_pp1_new"]
 
     if add_nrcs_model:
         # add timing
@@ -1455,7 +1455,7 @@ def makeL2(
         "coverage": xr_dataset.attrs["coverage"],
     }
 
-    for recalib_attrs in ["aux_pp1_new", "aux_pp1", "aux_cal_new", "aux_cal"]:
+    for recalib_attrs in ["aux_pp1_recal", "aux_pp1", "aux_cal_recal", "aux_cal"]:
         if recalib_attrs in xr_dataset.attrs:
             attrs[recalib_attrs] = xr_dataset.attrs[recalib_attrs]
 
@@ -1463,7 +1463,7 @@ def makeL2(
         if arg in xr_dataset.attrs:
             attrs["passDirection"] = xr_dataset.attrs[arg]
 
-    _S1_added_attrs = ["ipf", "platform_heading"]
+    _S1_added_attrs = ["ipf_version", "platform_heading"]
     _RCM_added_attrs = ["productId"]
 
     for sup_attr in _S1_added_attrs + _RCM_added_attrs:
