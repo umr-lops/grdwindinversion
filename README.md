@@ -5,7 +5,7 @@
 Package to perform Wind inversion from GRD Level-1 SAR images
 
 -   Free software: MIT license
--   Documentation: https://grdwindinversion.readthedocs.io.
+-   Documentation: https://cerweb.ifremer.fr/datarmor/doc_sphinx/grdwindinversion/index.html.
 
 ## Usage
 
