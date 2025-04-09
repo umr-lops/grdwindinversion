@@ -310,9 +310,13 @@ def inverse_dsig_wspd(
     ancillary_wind=: xarray.DataArray (numpy.complex28)
         ancillary wind
             | (for example ecmwf winds), in **ANTENNA convention**,
-    model_co=: str
+    nesz_cr: xarray.DataArray
+        noise equivalent sigma0 | flattened or not 
+    dsig_cr_name:  str
+        dsig_cr name
+    model_co: str
         model to use for VV or HH polarization.
-    model_cross=: str
+    model_cross: str
         model to use for VH or HV polarization.
 
     Returns
@@ -978,7 +982,8 @@ def preprocess(
     config["sensor"] = sensor
     config["dsig_cr_step"] = dsig_cr_step
     config["dsig_cr_name"] = dsig_cr_name
-
+    config["apply_flattening"] = apply_flattening
+    
     # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
@@ -1402,6 +1407,7 @@ def makeL2(
     sensor_longname = config["sensor_longname"]
     dsig_cr_step = config["dsig_cr_step"]
     dsig_cr_name = config["dsig_cr_name"]
+    apply_flattening = config["apply_flattening"]
     if dual_pol:
         sigma0_ocean_cross = xr_dataset["sigma0_ocean"].sel(pol=crosspol)
         if dsig_cr_step == "nrcs":
@@ -1444,13 +1450,19 @@ def makeL2(
     elif dsig_cr_step == "wspd":
         logging.info(
             "dsig_cr_step is wspd : polarization are mixed at winds speed step")
+        
+        if apply_flattening:
+            nesz_cross = xr_dataset["nesz_cross_flattened"]
+        else : 
+            nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
+        
         wind_co, wind_dual, windspeed_cr, alpha = inverse_dsig_wspd(
             dual_pol,
             inc=xr_dataset["incidence"],
             sigma0=xr_dataset["sigma0_ocean"].sel(pol=copol),
             sigma0_dual=sigma0_ocean_cross,
             ancillary_wind=xr_dataset["ancillary_wind"],
-            nesz_cr=xr_dataset["nesz_cross_flattened"],
+            nesz_cr=nesz_cross,
             dsig_cr_name=dsig_cr_name,
             model_co=model_co,
             model_cross=model_cross,
@@ -1458,6 +1470,7 @@ def makeL2(
         )
         xr_dataset["alpha"] = xr.DataArray(
             data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
+        xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
         xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
 
     else:
