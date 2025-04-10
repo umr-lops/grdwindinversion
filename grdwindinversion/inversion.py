@@ -881,7 +881,7 @@ def preprocess(
         )
 
     try:
-        logging.info("recalibration = {recalibration}")
+        logging.info(f"recalibration = {recalibration}")
         if (recalibration) & ("SENTINEL" in sensor_longname):
             logging.info(
                 f"recalibration is {recalibration} : Kersten formula is applied"
