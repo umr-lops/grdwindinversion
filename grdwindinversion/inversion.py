@@ -881,6 +881,7 @@ def preprocess(
         )
 
     try:
+        logging.info("recalibration = {recalibration}")
         if (recalibration) & ("SENTINEL" in sensor_longname):
             logging.info(
                 f"recalibration is {recalibration} : Kersten formula is applied"
@@ -983,7 +984,7 @@ def preprocess(
     config["dsig_cr_step"] = dsig_cr_step
     config["dsig_cr_name"] = dsig_cr_name
     config["apply_flattening"] = apply_flattening
-    
+
     # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
@@ -1450,12 +1451,12 @@ def makeL2(
     elif dsig_cr_step == "wspd":
         logging.info(
             "dsig_cr_step is wspd : polarization are mixed at winds speed step")
-        
+
         if apply_flattening:
             nesz_cross = xr_dataset["nesz_cross_flattened"]
-        else : 
+        else:
             nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
-        
+
         wind_co, wind_dual, windspeed_cr, alpha = inverse_dsig_wspd(
             dual_pol,
             inc=xr_dataset["incidence"],
