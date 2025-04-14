@@ -969,7 +969,7 @@ def preprocess(
         model_cross = config["GMF_" + crosspol_gmf + "_NAME"]
         dsig_cr_name = config["dsig_" + crosspol_gmf + "_NAME"]
         apply_flattening = config["apply_flattening"]
-        dsig_cr_step = config.get("dsig_cr_step")
+        dsig_cr_step = config["dsig_cr_step"]
 
     # register paramaters in config
     config["l2_params"]["dual_pol"] = dual_pol
