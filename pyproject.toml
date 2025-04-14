@@ -40,6 +40,7 @@ dependencies = [
     "scipy",
     "fsspec",
     "aiohttp",
+    "xmlschema=3.4.3"
 ]
 
 dynamic = ["version"]

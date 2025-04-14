@@ -30,6 +30,7 @@ requirements:
     - xarray-safe-s1
     - xarray-safe-rcm
     - xradarsat2
+    - xmlschema=3.4.3
 
 about:
   home: https://github.com/umr-lops/grdwindinversion
