@@ -71,9 +71,9 @@ jobs:
             - name: Setup xsar configuration
               run: |
                   mkdir -p ~/.xsar
-                  echo "data_dir: /tmp" > ~/.xsar/config.yaml
-                  echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yaml
-                  echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv" >> ~/.xsar/config.yaml
+                  echo "data_dir: /tmp" > ~/.xsar/config.yml
+                  echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yml
+                  echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv" >> ~/.xsar/config.yml
 
               # Set up grdwindinversion configuration
             - name: Setup grdwindinversion configuration
