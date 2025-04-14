@@ -53,8 +53,8 @@ jobs:
               id: cache
               with:
                   path: ./test_data
-                  key: test-data-v3
-                  restore-keys: test-data-v3
+                  key: test-data-v4
+                  restore-keys: test-data-v4
 
               # Download test data if not already cached
             - name: Download test data
@@ -65,6 +65,8 @@ jobs:
                   unzip /tmp/ecmwf.zip -d ./test_data/
                   wget https://cloud.ifremer.fr/index.php/s/kRgdOOPsjoZieZR/download -O /tmp/l1.zip
                   unzip /tmp/l1.zip -d ./test_data/
+                  wget https://cloud.ifremer.fr/index.php/s/RgloaQ8gi8svYOe/download -O /tmp/auxiliary.zip
+                  unzip /tmp/auxiliary.zip -d ./test_data/
               timeout-minutes: 200 # Adjust depending on the size of your data
 
               # Set up xsar configuration
