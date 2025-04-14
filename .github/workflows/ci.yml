@@ -53,8 +53,8 @@ jobs:
               id: cache
               with:
                   path: ./test_data
-                  key: test-data-v3
-                  restore-keys: test-data-v3
+                  key: test-data-v4
+                  restore-keys: test-data-v4
 
               # Download test data if not already cached
             - name: Download test data
@@ -65,15 +65,17 @@ jobs:
                   unzip /tmp/ecmwf.zip -d ./test_data/
                   wget https://cloud.ifremer.fr/index.php/s/kRgdOOPsjoZieZR/download -O /tmp/l1.zip
                   unzip /tmp/l1.zip -d ./test_data/
+                  wget https://cloud.ifremer.fr/index.php/s/RgloaQ8gi8svYOe/download -O /tmp/auxiliary.zip
+                  unzip /tmp/auxiliary.zip -d ./test_data/
               timeout-minutes: 200 # Adjust depending on the size of your data
 
               # Set up xsar configuration
             - name: Setup xsar configuration
               run: |
                   mkdir -p ~/.xsar
-                  echo "data_dir: /tmp" > ~/.xsar/config.yaml
-                  echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yaml
-                  echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv" >> ~/.xsar/config.yaml
+                  echo "data_dir: /tmp" > ~/.xsar/config.yml
+                  echo "auxiliary_dir: ./test_data/auxiliary" >> ~/.xsar/config.yml
+                  echo "path_dataframe_aux: ./test_data/auxiliary/active_aux.csv" >> ~/.xsar/config.yml
 
               # Set up grdwindinversion configuration
             - name: Setup grdwindinversion configuration

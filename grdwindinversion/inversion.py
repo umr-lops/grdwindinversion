@@ -189,7 +189,6 @@ def getAncillary(meta, ancillary_name="ecmwf"):
     """
 
     if ancillary_name == "ecmwf":
-
         logging.debug("conf: %s", getConf())
         ec01 = getConf()["ecmwf_0100_1h"]
         ec0125 = getConf()["ecmwf_0125_1h"]
@@ -283,6 +282,93 @@ def getAncillary(meta, ancillary_name="ecmwf"):
 
 
 @timing(logger=logger.debug)
+def inverse_dsig_wspd(
+    dual_pol,
+    inc,
+    sigma0,
+    sigma0_dual,
+    ancillary_wind,
+    nesz_cr,
+    dsig_cr_name,
+    model_co,
+    model_cross,
+    **kwargs,
+):
+    """
+    Invert sigma0 to retrieve wind using model (lut or gmf).
+
+    Parameters
+    ----------
+    dual_pol: bool
+        True if dualpol, False if singlepol
+    inc: xarray.DataArray
+        incidence angle
+    sigma0: xarray.DataArray
+        sigma0 to be inverted
+    sigma0_dual: xarray.DataArray
+        sigma0 to be inverted for dualpol
+    ancillary_wind=: xarray.DataArray (numpy.complex28)
+        ancillary wind
+            | (for example ecmwf winds), in **ANTENNA convention**,
+    nesz_cr: xarray.DataArray
+        noise equivalent sigma0 | flattened or not 
+    dsig_cr_name:  str
+        dsig_cr name
+    model_co: str
+        model to use for VV or HH polarization.
+    model_cross: str
+        model to use for VH or HV polarization.
+
+    Returns
+    -------
+    xarray.DataArray 
+        inverted wind in copol in ** antenna convention** .
+    xarray.DataArray 
+        inverted wind in dualpol in ** antenna convention** .
+    xarray.DataArray 
+        inverted wind in crosspol in ** antenna convention** .
+    xarray.DataArray | array
+        alpha (ponderation between co and crosspol)
+
+    See Also
+    --------
+    xsarsea documentation
+    https://cerweb.ifremer.fr/datarmor/doc_sphinx/xsarsea/
+    """
+
+    # dsig_cr_step == "wspd":
+
+    wind_co = xsarsea.windspeed.invert_from_model(
+        inc,
+        sigma0,
+        ancillary_wind=ancillary_wind,
+        model=model_co,
+        **kwargs
+    )
+
+    if dual_pol:
+
+        wind_cross = windspeed.invert_from_model(
+            inc.values,
+            sigma0_dual.values,
+            model=model_cross,
+            **kwargs,
+        )
+
+        wspd_co = np.abs(wind_co)
+        wspd_cross = np.abs(wind_cross)
+        SNR_cross = sigma0_dual.values/nesz_cr.values
+        alpha = windspeed.get_dsig_wspd(dsig_cr_name, wind_cross, SNR_cross)
+
+        wpsd_dual = alpha * wspd_co + (1 - alpha) * wspd_cross
+        wind_dual = wpsd_dual * np.exp(1j * np.angle(wind_co))
+
+        return wind_co, wind_dual, wind_cross, alpha
+
+    return wind_co, None, None, None
+
+
+@timing(logger=logger.debug)
 def inverse(
     dual_pol,
     inc,
@@ -321,8 +407,12 @@ def inverse(
 
     Returns
     -------
-    xarray.DataArray or tuple
-        inverted wind in ** antenna convention** .
+    xarray.DataArray 
+        inverted wind in copol in ** antenna convention** .
+    xarray.DataArray 
+        inverted wind in dualpol in ** antenna convention** .
+    xarray.DataArray 
+        inverted wind in crosspol in ** antenna convention** .
 
     See Also
     --------
@@ -519,8 +609,15 @@ def makeL2asOwi(xr_dataset, config):
         )
 
     if config["l2_params"]["dual_pol"]:
+        if config["dsig_cr_step"] == "nrcs":
+            xr_dataset = xr_dataset.rename({
+                'dsig_cross': 'owiDsig_cross',
+            })
+        else:
+            xr_dataset = xr_dataset.rename({
+                'alpha': 'owiAlpha',
+            })
         xr_dataset = xr_dataset.rename({
-            'dsig_cross': 'owiDsig_cross',
             'winddir_cross': 'owiWindDirection_cross',
             'winddir_dual': 'owiWindDirection',
             'windspeed_cross': 'owiWindSpeed_cross',
@@ -784,6 +881,7 @@ def preprocess(
         )
 
     try:
+        logging.info(f"recalibration = {recalibration}")
         if (recalibration) & ("SENTINEL" in sensor_longname):
             logging.info(
                 f"recalibration is {recalibration} : Kersten formula is applied"
@@ -855,8 +953,23 @@ def preprocess(
         copol_gmf = "HH"
         crosspol_gmf = "VH"
 
-    model_co = config["GMF_" + copol_gmf + "_NAME"]
-    model_cross = config["GMF_" + crosspol_gmf + "_NAME"]
+    cond_aux_cal = (sensor == "S1A" or sensor == "S1B") and (
+        xsar_dataset.dataset.attrs["aux_cal"].split("_")[-1][1:9] > '20190731')
+    if cond_aux_cal and xr_dataset.attrs["swath"] == "EW" and "S1_EW_calG>20190731" in config.keys():
+        model_co = config["S1_EW_calG>20190731"]["GMF_" + copol_gmf + "_NAME"]
+        model_cross = config["S1_EW_calG>20190731"]["GMF_" +
+                                                    crosspol_gmf + "_NAME"]
+        dsig_cr_name = config["S1_EW_calG>20190731"]["dsig_" +
+                                                     crosspol_gmf + "_NAME"]
+        apply_flattening = config["S1_EW_calG>20190731"]["apply_flattening"]
+        dsig_cr_step = config["S1_EW_calG>20190731"]["dsig_cr_step"]
+
+    else:
+        model_co = config["GMF_" + copol_gmf + "_NAME"]
+        model_cross = config["GMF_" + crosspol_gmf + "_NAME"]
+        dsig_cr_name = config["dsig_" + crosspol_gmf + "_NAME"]
+        apply_flattening = config["apply_flattening"]
+        dsig_cr_step = config["dsig_cr_step"]
 
     # register paramaters in config
     config["l2_params"]["dual_pol"] = dual_pol
@@ -868,6 +981,9 @@ def preprocess(
     config["l2_params"]["model_cross"] = model_cross
     config["sensor_longname"] = sensor_longname
     config["sensor"] = sensor
+    config["dsig_cr_step"] = dsig_cr_step
+    config["dsig_cr_name"] = dsig_cr_name
+    config["apply_flattening"] = apply_flattening
 
     # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
@@ -1048,35 +1164,35 @@ def preprocess(
         xr_dataset['nesz_cross_flattened'].attrs[
             "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
 
-        if config["apply_flattening"]:
+        if dsig_cr_step == "nrcs":
             # dsig
-            xr_dataset["dsig_cross"] = windspeed.get_dsig(
-                config["dsig_" + crosspol_gmf + "_NAME"],
-                xr_dataset.incidence,
-                xr_dataset["sigma0_ocean"].sel(pol=crosspol),
-                xr_dataset.nesz_cross_flattened,
+            if apply_flattening:
+                xr_dataset["dsig_cross"] = windspeed.get_dsig(
+                    dsig_cr_name,
+                    xr_dataset.incidence,
+                    xr_dataset["sigma0_ocean"].sel(pol=crosspol),
+                    xr_dataset.nesz_cross_flattened,
+                )
+
+                xr_dataset.dsig_cross.attrs["formula_used"] = config[
+                    "dsig_" + crosspol_gmf + "_NAME"
+                ]
+
+            else:
+                xr_dataset["dsig_cross"] = windspeed.get_dsig(
+                    dsig_cr_name,
+                    xr_dataset.incidence,
+                    xr_dataset["sigma0_ocean"].sel(pol=crosspol),
+                    xr_dataset.nesz.sel(pol=crosspol),
+                )
+
+            xr_dataset.dsig_cross.attrs["comment"] = (
+                "variable used to ponderate copol and crosspol. this ponderation is done will combining cost functions during inversion process"
             )
 
-            xr_dataset.dsig_cross.attrs["formula_used"] = config[
-                "dsig_" + crosspol_gmf + "_NAME"
-            ]
-
-        else:
-            # dsig
-            xr_dataset["dsig_cross"] = windspeed.get_dsig(
-                config["dsig_" + crosspol_gmf + "_NAME"],
-                xr_dataset.incidence,
-                xr_dataset["sigma0_ocean"].sel(pol=crosspol),
-                xr_dataset.nesz.sel(pol=crosspol),
+            xr_dataset.dsig_cross.attrs["apply_flattening"] = str(
+                apply_flattening
             )
-
-        xr_dataset.dsig_cross.attrs["comment"] = (
-            "variable used to ponderate copol and crosspol"
-        )
-
-        xr_dataset.dsig_cross.attrs["apply_flattening"] = str(
-            config["apply_flattening"]
-        )
 
     if (recalibration) & ("SENTINEL" in sensor_longname):
         xr_dataset.attrs["aux_cal_recal"] = xsar_dataset.datatree["recalibration"].attrs["aux_cal_new"]
@@ -1254,6 +1370,7 @@ def makeL2(
         input filename
     outdir : str
         output folder
+
     config_path : str
         configuration file path
     overwrite : bool, optional
@@ -1289,10 +1406,15 @@ def makeL2(
     dual_pol = config["l2_params"]["dual_pol"]
     ancillary_name = config["ancillary"]
     sensor_longname = config["sensor_longname"]
-
+    dsig_cr_step = config["dsig_cr_step"]
+    dsig_cr_name = config["dsig_cr_name"]
+    apply_flattening = config["apply_flattening"]
     if dual_pol:
         sigma0_ocean_cross = xr_dataset["sigma0_ocean"].sel(pol=crosspol)
-        dsig_cross = xr_dataset["dsig_cross"]
+        if dsig_cr_step == "nrcs":
+            dsig_cross = xr_dataset["dsig_cross"]
+        else:
+            dsig_cross = 0.1
     else:
         sigma0_ocean_cross = None
         dsig_cross = 0.1  # default value set in xsarsea
@@ -1312,18 +1434,50 @@ def makeL2(
     inc_check_co, inc_check_cross = check_incidence_range(
         xr_dataset["incidence"], [model_co, model_cross], **kwargs
     )
+    if dsig_cr_step == "nrcs":
+        logging.info(
+            "dsig_cr_step is nrcs : polarization are mixed at cost function step")
+        wind_co, wind_dual, windspeed_cr = inverse(
+            dual_pol,
+            inc=xr_dataset["incidence"],
+            sigma0=xr_dataset["sigma0_ocean"].sel(pol=copol),
+            sigma0_dual=sigma0_ocean_cross,
+            ancillary_wind=xr_dataset["ancillary_wind"],
+            dsig_cr=dsig_cross,
+            model_co=model_co,
+            model_cross=model_cross,
+            **kwargs,
+        )
+    elif dsig_cr_step == "wspd":
+        logging.info(
+            "dsig_cr_step is wspd : polarization are mixed at winds speed step")
 
-    wind_co, wind_dual, windspeed_cr = inverse(
-        dual_pol,
-        inc=xr_dataset["incidence"],
-        sigma0=xr_dataset["sigma0_ocean"].sel(pol=copol),
-        sigma0_dual=sigma0_ocean_cross,
-        ancillary_wind=xr_dataset["ancillary_wind"],
-        dsig_cr=dsig_cross,
-        model_co=model_co,
-        model_cross=model_cross,
-        **kwargs,
-    )
+        if apply_flattening:
+            nesz_cross = xr_dataset["nesz_cross_flattened"]
+        else:
+            nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
+
+        wind_co, wind_dual, windspeed_cr, alpha = inverse_dsig_wspd(
+            dual_pol,
+            inc=xr_dataset["incidence"],
+            sigma0=xr_dataset["sigma0_ocean"].sel(pol=copol),
+            sigma0_dual=sigma0_ocean_cross,
+            ancillary_wind=xr_dataset["ancillary_wind"],
+            nesz_cr=nesz_cross,
+            dsig_cr_name=dsig_cr_name,
+            model_co=model_co,
+            model_cross=model_cross,
+            **kwargs
+        )
+        xr_dataset["alpha"] = xr.DataArray(
+            data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
+        xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
+        xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
+
+    else:
+        raise ValueError(
+            f"dsig_cr_step must be 'nrcs' or 'wspd', got {dsig_cr_step}")
+
     # windspeed_co
     xr_dataset["windspeed_co"] = np.abs(wind_co)
     xr_dataset["windspeed_co"].attrs["units"] = "m.s⁻1"
@@ -1351,8 +1505,11 @@ def makeL2(
             % (model_co, copol, model_cross, crosspol)
         )
         xr_dataset["windspeed_dual"].attrs["standart_name"] = "wind_speed"
-        xr_dataset["windspeed_dual"].attrs["model"] = wind_dual.attrs["model"]
-        del xr_dataset["windspeed_dual"].attrs["comment"]
+        xr_dataset["windspeed_dual"].attrs["model"] = (model_co, model_cross)
+        xr_dataset["windspeed_dual"].attrs["combining_method"] = dsig_cr_step
+
+        if "comment" in xr_dataset["windspeed_dual"].attrs:
+            del xr_dataset["windspeed_dual"].attrs["comment"]
 
         xr_dataset["winddir_dual"] = transform_winddir(
             wind_dual,

@@ -13,6 +13,7 @@ S1A:
     wspd_step: 0.1
     phi_step: 1.0
     resolution: "high"
+    dsig_cr_step: "nrcs"
 S1B:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_s1_v2"
@@ -24,6 +25,7 @@ S1B:
     wspd_step: 0.1
     phi_step: 1.0
     resolution: "high"
+    dsig_cr_step: "nrcs"
 RS2:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_rs2_v2"
@@ -35,6 +37,7 @@ RS2:
     wspd_step: 0.1
     phi_step: 1.0
     resolution: "high"
+    dsig_cr_step: "nrcs"
 RCM:
     GMF_VV_NAME: "gmf_cmod5n"
     GMF_VH_NAME: "gmf_rcm_noaa"
@@ -46,6 +49,7 @@ RCM:
     wspd_step: 0.1
     phi_step: 1.0
     resolution: "high"
+    dsig_cr_step: "nrcs"
 
 unit_test_s1_product: "./test_data/L1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE"
 unit_test_rcm_product: "./test_data/L1/RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD"

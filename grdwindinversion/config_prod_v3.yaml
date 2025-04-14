@@ -1,0 +1,70 @@
+no_subdir: True
+winddir_convention: "meteorological"
+add_gradientsfeatures: False
+add_nrcs_model: False
+S1A:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_s1_v2"
+    dsig_VH_NAME: "gmf_s1_v2"
+    dsig_cr_step: "nrcs"
+    apply_flattening: True
+    S1_EW_calG>20190731:
+        GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
+        GMF_VV_NAME: "gmf_cmod5n"
+        GMF_VH_NAME: "gmf_s1_v3_ew_rec"
+        dsig_VH_NAME: "dsig_wspd_s1_ew_rec_v3"
+        dsig_cr_step: "wspd"
+        apply_flattening: True
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
+S1B:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_s1_v2"
+    dsig_VH_NAME: "gmf_s1_v2"
+    dsig_cr_step: "nrcs"
+    apply_flattening: True
+    S1_EW_calG>20190731:
+        GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
+        GMF_VV_NAME: "gmf_cmod5n"
+        GMF_VH_NAME: "gmf_s1_v3_ew_rec"
+        dsig_VH_NAME: "dsig_wspd_s1_ew_rec_v3"
+        dsig_cr_step: "wspd"
+        apply_flattening: True
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
+RS2:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_rs2_v3"
+    dsig_VH_NAME: "dsig_wspd_rs2_v3"
+    dsig_cr_step: "wspd"
+    apply_flattening: False
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
+RCM:
+    GMF_HH_NAME: "nc_lut_gmf_cmod5n_Rhigh_hh_mouche1"
+    GMF_VV_NAME: "gmf_cmod5n"
+    GMF_VH_NAME: "gmf_rcm_v3"
+    dsig_VH_NAME: "dsig_wspd_rcm_v3"
+    dsig_cr_step: "wspd"
+    apply_flattening: True
+    recalibration: False
+    ancillary: "ecmwf"
+    inc_step: 0.1
+    wspd_step: 0.1
+    phi_step: 1.0
+    resolution: "high"
