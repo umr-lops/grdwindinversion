@@ -143,7 +143,7 @@ def getOutputName(
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, LAST = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxx-xxx.nc"
     elif sensor == "RCM":
 
         regex = re.compile(
@@ -160,7 +160,7 @@ def getOutputName(
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, PRODUCT = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxx-xxx.nc"
 
     else:
         raise ValueError(
