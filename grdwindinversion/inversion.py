@@ -953,8 +953,15 @@ def preprocess(
         copol_gmf = "HH"
         crosspol_gmf = "VH"
 
-    cond_aux_cal = (sensor == "S1A" or sensor == "S1B") and (
-        xsar_dataset.dataset.attrs["aux_cal"].split("_")[-1][1:9] > '20190731')
+    if (sensor == "S1A" or sensor == "S1B") and xsar_dataset.dataset.attrs["aux_cal"] is None:
+        raise ValueError(
+            "aux_cal attribute is None, xsar_dataset.dataset.attrs['aux_cal'] must be set to a valid value"
+        )
+    cond_aux_cal = (
+        (sensor == "S1A" or sensor == "S1B")
+        and xsar_dataset.dataset.attrs["aux_cal"] is not None
+        and xsar_dataset.dataset.attrs["aux_cal"].split("_")[-1][1:9] > "20190731"
+    )
     if cond_aux_cal and xr_dataset.attrs["swath"] == "EW" and "S1_EW_calG>20190731" in config.keys():
         model_co = config["S1_EW_calG>20190731"]["GMF_" + copol_gmf + "_NAME"]
         model_cross = config["S1_EW_calG>20190731"]["GMF_" +
