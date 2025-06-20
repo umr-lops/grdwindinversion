@@ -54,6 +54,10 @@ def getSensorMetaDataset(filename):
         return "S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
     elif "S1B" in filename:
         return "S1B", "SENTINEL-1 B", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
+    elif "S1C" in filename:
+        return "S1C", "SENTINEL-1 C", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
+    elif "S1D" in filename:
+        return "S1D", "SENTINEL-1 D", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
     elif "RS2" in filename:
         return "RS2", "RADARSAT-2", xsar.RadarSat2Meta, xsar.RadarSat2Dataset
     elif "RCM1" in filename:
@@ -65,7 +69,7 @@ def getSensorMetaDataset(filename):
 
     else:
         raise ValueError(
-            "must be S1A|S1B|RS2|RCM1|RCM2|RCM3, got filename %s" % filename
+            "must be S1A|S1B|S1C|S1D|RS2|RCM1|RCM2|RCM3, got filename %s" % filename
         )
 
 
@@ -96,7 +100,7 @@ def getOutputName(
     basename = os.path.basename(input_file)
     basename_match = basename
 
-    if sensor == "S1A" or sensor == "S1B":
+    if sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D":
         regex = re.compile(
             "(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
         )
@@ -143,7 +147,7 @@ def getOutputName(
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, LAST = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxxxx-xxxxx.nc"
     elif sensor == "RCM":
 
         regex = re.compile(
@@ -160,11 +164,11 @@ def getOutputName(
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, PRODUCT = (
             match.groups()
         )
-        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-_____-_____.nc"
+        new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxxxx-xxxxx.nc"
 
     else:
         raise ValueError(
-            "sensor must be S1A|S1B|RS2|RCM, got sensor %s" % sensor)
+            "sensor must be S1A|S1B|S1C|RS2|RCM, got sensor %s" % sensor)
 
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
@@ -953,8 +957,16 @@ def preprocess(
         copol_gmf = "HH"
         crosspol_gmf = "VH"
 
-    cond_aux_cal = (sensor == "S1A" or sensor == "S1B") and (
-        xsar_dataset.dataset.attrs["aux_cal"].split("_")[-1][1:9] > '20190731')
+    if (sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D") and xsar_dataset.dataset.attrs["aux_cal"] is None:
+        raise ValueError(
+            "aux_cal attribute is None, xsar_dataset.dataset.attrs['aux_cal'] must be set to a valid value"
+        )
+    cond_aux_cal = (
+        (sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D")
+        and xsar_dataset.dataset.attrs["aux_cal"] is not None
+        and xsar_dataset.dataset.attrs["aux_cal"].split("_")[-1][1:9] > "20190731"
+    )
+
     if cond_aux_cal and xr_dataset.attrs["swath"] == "EW" and "S1_EW_calG>20190731" in config.keys():
         model_co = config["S1_EW_calG>20190731"]["GMF_" + copol_gmf + "_NAME"]
         model_cross = config["S1_EW_calG>20190731"]["GMF_" +

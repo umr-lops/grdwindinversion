@@ -19,15 +19,15 @@ safes = ['S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SA
 outfiles = ['s1a-iw-owi-dv-20210909t130650-20210909t130715-039605-04AE83.nc',
             's1a-iw-owi-dh-20210101t102321-20210101t102346-035943-0435C4.nc',
             's1a-iw-owi-sv-20170105t225242-20170105t225311-014703-017ED0.nc',
-            'rcm1-sclnd-owi-dv-20230930t214011-20230930t214127-_____-_____.nc',
-            'rcm2-sclna-owi-dv-20240125t195611-20240125t195726-_____-_____.nc',
-            'rs2-scwa-owi-dv-20220904t093402-20220904t093518-_____-_____.nc',
+            'rcm1-sclnd-owi-dv-20230930t214011-20230930t214127-xxxxx-xxxxx.nc',
+            'rcm2-sclna-owi-dv-20240125t195611-20240125t195726-xxxxx-xxxxx.nc',
+            'rs2-scwa-owi-dv-20220904t093402-20220904t093518-xxxxx-xxxxx.nc',
             's1a-ew-owi-dv-20230908t092521-20230908t092624-050234-060BF1.nc',
             's1a-iw-owi-dv-20150315t053621-20150315t053646-005038-006529.nc',
             's1b-iw-owi-dv-20171117t164022-20171117t164047-008324-00EBB3.nc',
-            'rcm3-sclna-owi-dv-20230303t063449-20230303t063629-_____-_____.nc',
-            'rs2-scwa-owi-dv-20160912t212842-20160912t212958-_____-_____.nc',
-            'rs2-scwa-owi-sv-20160912t212842-20160912t212958-_____-_____.nc',]
+            'rcm3-sclna-owi-dv-20230303t063449-20230303t063629-xxxxx-xxxxx.nc',
+            'rs2-scwa-owi-dv-20160912t212842-20160912t212958-xxxxx-xxxxx.nc',
+            'rs2-scwa-owi-sv-20160912t212842-20160912t212958-xxxxx-xxxxx.nc',]
 
 sensors = ['S1A', 'S1A', 'S1A', 'RCM', 'RCM',
            'RS2', 'S1A', 'S1A', 'S1B', 'RCM', 'RS2', 'RS2']
@@ -101,6 +101,6 @@ def test_function_getOutputName():
 
         assert output == result, f"Expected {output}, got {result}"
 
-
+        
 if __name__ == '__main__':
     test_function_getSensorMetaDataset()
