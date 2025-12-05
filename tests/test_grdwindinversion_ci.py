@@ -18,7 +18,9 @@ from grdwindinversion.load_config import getConf
 S1_path = getConf()['unit_test_s1_product']
 rcm_path = getConf()['unit_test_rcm_product']
 rs2_path = getConf()['unit_test_rs2_product']
-print('S1_path',S1_path)
+print('S1_path', S1_path)
+
+
 def test_makeL2_generation():
     l1_files = [
         S1_path,
@@ -39,7 +41,7 @@ def test_makeL2_generation():
     for f in l1_files:
         # Run the makeL2 function
         print(f)
-        output_nc_file, dataset = makeL2(
+        output_nc_file, dataset, return_status = makeL2(
             filename=f,
             outdir=outdir,
             config_path=config_path,
@@ -57,6 +59,7 @@ def test_makeL2_generation():
         assert (
             "owiWindSpeed" in dataset.variables
         ), "Expected variable 'owiWindSpeed' missing in the dataset"
+
 
 if __name__ == '__main__':
     test_makeL2_generation()

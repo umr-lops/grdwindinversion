@@ -1,5 +1,6 @@
 # To place here in the code to not have errors with cv2.
 #  if placed in main => error ..
+from io import StringIO
 import tempfile
 import traceback
 import xsar
@@ -13,12 +14,11 @@ import datetime
 import yaml
 from scipy.ndimage import binary_dilation
 import re
+import os
+import logging
 import string
 from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
 from grdwindinversion.load_config import getConf
-import logging
-import os
-
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -32,8 +32,15 @@ cv2.setNumThreads(1)
 
 
 # optional debug messages
-logger = logging.getLogger('grdwindinversion.inversion')
-logger.addHandler(logging.NullHandler())
+
+log_stream = StringIO()
+
+capture_handler = logging.StreamHandler(log_stream)
+capture_handler.setLevel(logging.WARNING)
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(capture_handler)
 
 
 def getSensorMetaDataset(filename):
@@ -199,7 +206,6 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         logging.debug("ec01 : %s", ec01)
         meta.set_raster("ecmwf_0100_1h", ec01)
         meta.set_raster("ecmwf_0125_1h", ec0125)
-
         map_model = None
         # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
         for ecmwf_name in ["ecmwf_0125_1h", "ecmwf_0100_1h"]:
@@ -285,7 +291,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
             "ancillary_name must be ecmwf/era5, got %s" % ancillary_name)
 
 
-@timing(logger=logger.debug)
+@timing(logger=root_logger.debug)
 def inverse_dsig_wspd(
     dual_pol,
     inc,
@@ -372,7 +378,7 @@ def inverse_dsig_wspd(
     return wind_co, None, None, None
 
 
-@timing(logger=logger.debug)
+@timing(logger=root_logger.debug)
 def inverse(
     dual_pol,
     inc,
@@ -467,7 +473,7 @@ def inverse(
     return wind_co, None, None
 
 
-@timing(logger=logger.debug)
+@timing(logger=root_logger.debug)
 def makeL2asOwi(xr_dataset, config):
     """
     Rename xr_dataset variables and attributes to match naming convention.
@@ -825,7 +831,7 @@ def preprocess(
         winddir_convention = config_base["winddir_convention"]
     else:
         winddir_convention = "meteorological"
-        logging.warning(
+        logging.info(
             f'Using meteorological convention because "winddir_convention" was not found in config.'
         )
     config["winddir_convention"] = winddir_convention
@@ -834,17 +840,17 @@ def preprocess(
         add_gradientsfeatures = config_base["add_gradientsfeatures"]
     else:
         add_gradientsfeatures = False
-        logging.warning(f"Not computing gradients by default")
+        logging.info(f"Not computing gradients by default")
     config["add_gradientsfeatures"] = add_gradientsfeatures
 
     if "add_nrcs_model" in config_base:
         add_nrcs_model = config_base["add_nrcs_model"]
         add_nrcs_model = False
-        logging.warning(
+        logging.info(
             f"Force add_nrcs_model to be false, before fixing an issue")
     else:
         add_nrcs_model = False
-        logging.warning(f"Not computing nrcs from model by default")
+        logging.info(f"Not computing nrcs from model by default")
     config["add_nrcs_model"] = add_nrcs_model
 
     # creating a dictionnary of parameters
@@ -948,10 +954,11 @@ def preprocess(
         crosspol_gmf = "VH"
     else:
         logging.warning(
-            "for now this processor does not support entirely HH+HV acquisitions\n "
+            "inversion_rules warning : for now this processor does not support entirely HH+HV acquisitions\n "
             "it wont crash but it will use HH+VH GMF for wind inversion -> wrong hypothesis\n "
             "!! dual WIND SPEED IS NOT USABLE !! But co WIND SPEED IS USABLE !!"
         )
+
         copol = "HH"
         crosspol = "HV"
         copol_gmf = "HH"
@@ -1170,8 +1177,23 @@ def preprocess(
         xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
 
-        xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-            ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+        try:
+            xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
+                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+        except Exception as e:
+            if apply_flattening:
+                # error
+                logging.error("Error during NESZ flattening computation")
+                logging.info("%s", traceback.format_exc())
+                raise e
+            else:
+                # replace with nans
+                logging.warning("nesz_flattening warning => Error during NESZ flattening computation, but apply_flattening is False, \
+                                so continuing without nesz_cross_flattened and replace with NaNs\n \
+                                The error comes probably from NaN in incidence angle")
+
+                xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
+                    ['line', 'sample'], np.full(xr_dataset.nesz.sel(pol=crosspol).shape, np.nan)))
 
         xr_dataset['nesz_cross_flattened'].attrs[
             "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
@@ -1228,7 +1250,7 @@ def preprocess(
 
         for idx, gmf_name in enumerate(gmf_names):
 
-            @timing(logger=logger.info)
+            @timing(logger=root_logger.info)
             def apply_lut_to_dataset():
                 lut = xsarsea.windspeed.get_model(
                     gmf_name).to_lut(unit="linear")
@@ -1361,15 +1383,15 @@ def process_gradients(xr_dataset, config):
             }
         )
     else:
-        logger.warn(
-            "'longitude' not found in streaks_indiv : there is probably an error"
+        root_logger.warning(
+            "process_gradients warning : 'longitude' not found in streaks_indiv : there is probably an error"
         )
         xr_dataset_streaks = None
 
     return xr_dataset, xr_dataset_streaks
 
 
-@timing(logger=logger.info)
+@timing(logger=root_logger.info)
 def makeL2(
     filename, outdir, config_path, overwrite=False, generateCSV=True, resolution="1000m"
 ):
@@ -1442,7 +1464,6 @@ def makeL2(
     }
 
     logging.info("Checking incidence range within LUTS incidence range")
-    #  warning if incidence is out of lut incidence range
     inc_check_co, inc_check_cross = check_incidence_range(
         xr_dataset["incidence"], [model_co, model_cross], **kwargs
     )
@@ -1679,7 +1700,14 @@ def makeL2(
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file, xr_dataset
+    logs = log_stream.getvalue().lower()
+    return_status = 0  # SUCCESS
+    for keyword in ["nesz_flattening warning", "check_incidance_range", "process_gradients warning", "inversion_rules warning"]:
+        if keyword.lower() in logs:
+            return_status = 99  # important warning
+            break
+
+    return out_file, xr_dataset, return_status
 
 
 def transform_winddir(wind_cpx, ground_heading, winddir_convention="meteorological"):
@@ -1719,6 +1747,7 @@ def transform_winddir(wind_cpx, ground_heading, winddir_convention="meteorologic
         logging.warning(
             f"wind direction convention {winddir_convention} is not supported, using meteorological",
         )
+
         long_name = "Wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east"
 
     dataArray = xsarsea.dir_to_360(dataArray)

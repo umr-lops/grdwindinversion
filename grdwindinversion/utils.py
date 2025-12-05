@@ -21,12 +21,12 @@ except ImportError:
 def convert_polarization_name(pol):
     """
     Convert polarization name to the format used in the output filename
-    
+
     Parameters
     ----------
     pol : str
         polarization name
-        
+
     Returns
     ------- 
     str
@@ -42,6 +42,7 @@ def convert_polarization_name(pol):
         return "sh"
     else:
         return "xx"
+
 
 def check_incidence_range(incidence, models, **kwargs):
     """
@@ -80,8 +81,8 @@ def check_incidence_range(incidence, models, **kwargs):
         if inc_range[0] >= lut_range[0] and inc_range[1] <= lut_range[1]:
             rets.append(True)
         else:
-            logging.warn(
-                f"incidence range {inc_range} is not within the range of the LUT of the model {model_name} {lut_range} : inversion will be approximate using LUT minmium|maximum incidences"
+            logging.warning(
+                f"check_incidance_range warning : incidence range {inc_range} is not within the range of the LUT of the model {model_name} {lut_range} : inversion will be approximate using LUT minmium|maximum incidences"
             )
             rets.append(False)
 
@@ -115,7 +116,7 @@ def get_pol_ratio_name(model_co):
                     vvgmf, res, polrationame = match.groups()
                     return polrationame
                 else:
-                    logging.warn(
+                    logging.warning(
                         f"String format is not correct for polarization ratio name = {s}\nReturning '/'"
                     )
                     return "/"
@@ -145,7 +146,8 @@ def timing(logger=logger.debug):
             if mem_monitor:
                 endrss = process.memory_info().rss
                 mem_str = "mem: %+.1fMb" % ((endrss - startrss) / (1024**2))
-            logger("timing %s : %.2fs. %s" % (f.__name__, endtime - starttime, mem_str))
+            logger("timing %s : %.2fs. %s" %
+                   (f.__name__, endtime - starttime, mem_str))
             return result
 
         wrapper.__doc__ = f.__doc__
