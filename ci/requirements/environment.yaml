@@ -32,6 +32,7 @@ dependencies:
     - dask=2024.11.*
     - pandas=2.2.*
     - shapely=2.0.*
+    - xsar
 
     - xarray-datatree
 
