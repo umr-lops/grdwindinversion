@@ -175,7 +175,7 @@ def getOutputName(
 
     else:
         raise ValueError(
-            "sensor must be S1A|S1B|S1C|RS2|RCM, got sensor %s" % sensor)
+            "sensor must be S1A|S1B|S1C|S1D|RS2|RCM, got sensor %s" % sensor)
 
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
@@ -321,7 +321,7 @@ def inverse_dsig_wspd(
         ancillary wind
             | (for example ecmwf winds), in **ANTENNA convention**,
     nesz_cr: xarray.DataArray
-        noise equivalent sigma0 | flattened or not 
+        noise equivalent sigma0 | flattened or not
     dsig_cr_name:  str
         dsig_cr name
     model_co: str
@@ -331,11 +331,11 @@ def inverse_dsig_wspd(
 
     Returns
     -------
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in copol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in dualpol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in crosspol in ** antenna convention** .
     xarray.DataArray | array
         alpha (ponderation between co and crosspol)
@@ -417,11 +417,11 @@ def inverse(
 
     Returns
     -------
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in copol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in dualpol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in crosspol in ** antenna convention** .
 
     See Also
@@ -938,8 +938,7 @@ def preprocess(
     config["fct_dataset"] = fct_dataset
     config["map_model"] = map_model
 
-    # load
-    xr_dataset = xr_dataset.load()
+   xr_dataset = xr_dataset.load()
 
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
