@@ -938,7 +938,7 @@ def preprocess(
     config["fct_dataset"] = fct_dataset
     config["map_model"] = map_model
 
-   xr_dataset = xr_dataset.load()
+    xr_dataset = xr_dataset.load()
 
     # defining dual_pol, and gmfs by channel
     if len(xr_dataset.pol.values) == 2:
