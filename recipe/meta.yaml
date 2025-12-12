@@ -20,7 +20,8 @@ requirements:
     - python >=3.9,<3.11
     - xsar
     - xsarsea
-    - xarray
+    - xarray 
+    - dask >=2023,<2025
     - rioxarray
     - numpy
     - pyyaml
