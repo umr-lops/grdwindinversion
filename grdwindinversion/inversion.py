@@ -1,6 +1,5 @@
 # To place here in the code to not have errors with cv2.
 #  if placed in main => error ..
-from io import StringIO
 import tempfile
 import traceback
 import xsar
@@ -31,16 +30,7 @@ except:
 cv2.setNumThreads(1)
 
 
-# optional debug messages
-
-log_stream = StringIO()
-
-capture_handler = logging.StreamHandler(log_stream)
-capture_handler.setLevel(logging.WARNING)
-
 root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-root_logger.addHandler(capture_handler)
 
 
 def getSensorMetaDataset(filename):
@@ -957,6 +947,7 @@ def preprocess(
             "it wont crash but it will use HH+VH GMF for wind inversion -> wrong hypothesis\n "
             "!! dual WIND SPEED IS NOT USABLE !! But co WIND SPEED IS USABLE !!"
         )
+        config["status_code"] = 99
 
         copol = "HH"
         crosspol = "HV"
@@ -1190,7 +1181,7 @@ def preprocess(
                 logging.warning("nesz_flattening warning => Error during NESZ flattening computation, but apply_flattening is False, \
                                 so continuing without nesz_cross_flattened and replace with NaNs\n \
                                 The error comes probably from NaN in incidence angle")
-
+                config["return_status"] = 99
                 xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
                     ['line', 'sample'], np.full(xr_dataset.nesz.sel(pol=crosspol).shape, np.nan)))
 
@@ -1462,10 +1453,15 @@ def makeL2(
         "resolution": config.pop("resolution", None),
     }
 
+    config["return_status"] = 0  # default value SUCCESS
     logging.info("Checking incidence range within LUTS incidence range")
     inc_check_co, inc_check_cross = check_incidence_range(
         xr_dataset["incidence"], [model_co, model_cross], **kwargs
     )
+
+    if not inc_check_co or not inc_check_cross:
+        config["return_status"] = 99
+
     if dsig_cr_step == "nrcs":
         logging.info(
             "dsig_cr_step is nrcs : polarization are mixed at cost function step")
@@ -1699,14 +1695,10 @@ def makeL2(
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    logs = log_stream.getvalue().lower()
-    return_status = 0  # SUCCESS
-    for keyword in ["nesz_flattening warning", "check_incidance_range", "process_gradients warning", "inversion_rules warning"]:
-        if keyword.lower() in logs:
-            return_status = 99  # important warning
-            break
+    if config["add_gradientsfeatures"] and xr_dataset_streaks is None:
+        config["return_status"] = 99
 
-    return out_file, xr_dataset, return_status
+    return out_file, xr_dataset, config["return_status"]
 
 
 def transform_winddir(wind_cpx, ground_heading, winddir_convention="meteorological"):

@@ -82,7 +82,7 @@ def check_incidence_range(incidence, models, **kwargs):
             rets.append(True)
         else:
             logging.warning(
-                f"check_incidance_range warning : incidence range {inc_range} is not within the range of the LUT of the model {model_name} {lut_range} : inversion will be approximate using LUT minmium|maximum incidences"
+                f"check_incidence_range warning : incidence range {inc_range} is not within the range of the LUT of the model {model_name} {lut_range} : inversion will be approximate using LUT minmium|maximum incidences"
             )
             rets.append(False)
 
