@@ -947,7 +947,7 @@ def preprocess(
             "it wont crash but it will use HH+VH GMF for wind inversion -> wrong hypothesis\n "
             "!! dual WIND SPEED IS NOT USABLE !! But co WIND SPEED IS USABLE !!"
         )
-        config["status_code"] = 99
+        config["return_status"] = 99
 
         copol = "HH"
         crosspol = "HV"
