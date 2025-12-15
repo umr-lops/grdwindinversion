@@ -26,13 +26,7 @@ dependencies:
     - zarr
 
     # data
-    - numpy=2.1.*
-    - scipy=1.14.*
-    - xarray=2024.10.*
-    - dask=2024.11.*
-    - pandas=2.2.*
-    - shapely=2.0.*
-    - xsar
+    - dask <2025
 
     - xarray-datatree
 

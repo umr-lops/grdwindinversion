@@ -21,7 +21,7 @@ requirements:
     - xsar
     - xsarsea
     - xarray 
-    - dask >=2023,<2025
+    - dask <2025
     - rioxarray
     - numpy
     - pyyaml
