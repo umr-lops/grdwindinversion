@@ -30,7 +30,7 @@ except:
 cv2.setNumThreads(1)
 
 
-root_logger = logging.getLogger()
+root_logger = logging.getLogger("grdwindinversion.inversion")
 
 
 def getSensorMetaDataset(filename):
@@ -993,7 +993,6 @@ def preprocess(
     config["dsig_cr_step"] = dsig_cr_step
     config["dsig_cr_name"] = dsig_cr_name
     config["apply_flattening"] = apply_flattening
-
     # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
@@ -1638,6 +1637,7 @@ def makeL2(
         "swath": xr_dataset.attrs["swath"],
         "footprint": xr_dataset.attrs["footprint"],
         "coverage": xr_dataset.attrs["coverage"],
+        "cross_antimeridian": str(config["meta"].cross_antimeridian)
     }
 
     for recalib_attrs in ["aux_pp1_recal", "aux_pp1", "aux_cal_recal", "aux_cal"]:
