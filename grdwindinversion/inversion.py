@@ -914,7 +914,7 @@ def preprocess(
             else:
                 xsar_dataset = fct_dataset(meta, resolution=resolution)
                 xr_dataset = xsar_dataset.datatree["measurement"].to_dataset()
-
+        
         xr_dataset = xr_dataset.rename(map_model)
         xr_dataset.attrs = xsar_dataset.dataset.attrs
 
