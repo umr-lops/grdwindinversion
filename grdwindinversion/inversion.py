@@ -16,6 +16,7 @@ import re
 import os
 import logging
 import string
+
 from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
 from grdwindinversion.load_config import getConf
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -174,6 +175,73 @@ def getOutputName(
     return out_file
 
 
+def applyMasks(meta):
+    """
+    Apply high-resolution masks (land, ice, lakes, etc.) from shapefiles if configured.
+
+    This function searches for all configuration keys matching the pattern 'mask_*'
+    (e.g., 'mask_land_gshhs_f', 'mask_ice', 'mask_hydrolakes', etc.)
+    and applies them to the metadata object.
+
+    Parameters
+    ----------
+    meta : obj `xsar.BaseMeta` (one of the supported SAR mission)
+        Metadata object to apply the masks to
+
+    Returns
+    -------
+    None
+        Modifies meta object in place by setting mask features
+    """
+
+    # Find all mask configurations (pattern: mask_*)
+    conf = getConf()
+    mask_keys = [key for key in conf.keys() if key.startswith("mask_")]
+
+    for mask_key in mask_keys:
+        try:
+            mask_config = conf[mask_key]
+
+            # Validate configuration
+            if not isinstance(mask_config, dict):
+                logging.warning(
+                    "Mask configuration '%s' should be a dict with 'path' key, skipping",
+                    mask_key)
+                continue
+
+            if "path" not in mask_config:
+                logging.warning(
+                    "Mask configuration '%s' missing required 'path' key, skipping",
+                    mask_key)
+                continue
+
+            mask_path = mask_config["path"]
+
+            logging.debug("%s path : %s", mask_key, mask_path)
+
+            # Set mask feature with shapefile path as string
+            # xsar will handle the loading internally and bbox filtering
+            # Using str is recommended to avoid serialization issues
+            key_mask_xsar = mask_key.replace("mask_", "")
+            meta.set_mask_feature(key_mask_xsar, mask_path)
+            logging.info(
+                "Mask feature '%s' set from %s",
+                mask_key, mask_path)
+
+            # WARNING: Mask merge strategy is not yet implemented
+            # The mask is registered in xsar but not applied to the land_mask
+            logging.warning(
+                "Mask merge strategy not implemented: mask '%s' is registered but not applied to land_mask. Land mask kept with cartopy by default.",
+                mask_key)
+
+        except Exception as e:
+            logging.error(
+                "Failed to apply mask '%s': %s",
+                mask_key, str(e))
+            logging.debug("%s", traceback.format_exc())
+            # Continue with other masks even if one fails
+
+
 def getAncillary(meta, ancillary_name="ecmwf"):
     """
     Map ancillary wind from ECMWF or ERA5.
@@ -196,6 +264,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         logging.debug("ec01 : %s", ec01)
         meta.set_raster("ecmwf_0100_1h", ec01)
         meta.set_raster("ecmwf_0125_1h", ec0125)
+
         map_model = None
         # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
         for ecmwf_name in ["ecmwf_0125_1h", "ecmwf_0100_1h"]:
@@ -805,6 +874,9 @@ def preprocess(
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
 
+    # Apply masks if configured (land, ice, lakes, etc.)
+    applyMasks(meta)
+
     # si une des deux n'est pas VV VH HH HV on ne fait rien
     if not all([pol in ["VV", "VH", "HH", "HV"] for pol in meta.pols.split(" ")]):
         raise ValueError(f"Polarisation non gérée : meta.pols =  {meta.pols}")
@@ -914,7 +986,7 @@ def preprocess(
             else:
                 xsar_dataset = fct_dataset(meta, resolution=resolution)
                 xr_dataset = xsar_dataset.datatree["measurement"].to_dataset()
-        
+
         xr_dataset = xr_dataset.rename(map_model)
         xr_dataset.attrs = xsar_dataset.dataset.attrs
 
