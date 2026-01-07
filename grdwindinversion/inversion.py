@@ -45,6 +45,9 @@ SENSOR_METADATA = {
     "RCM3": ("RCM", "RADARSAT Constellation 3", xsar.RcmMeta, xsar.RcmDataset),
 }
 
+# Mask naming convention used by xsar
+XSAR_MASK_SUFFIX = "_mask"
+
 
 def getSensorMetaDataset(filename):
     """
@@ -167,71 +170,229 @@ def getOutputName(
     return out_file
 
 
-def applyMasks(meta):
+def addMasks_toMeta(meta: xsar.BaseMeta) -> dict:
     """
-    Apply high-resolution masks (land, ice, lakes, etc.) from shapefiles if configured.
+    Add high-resolution masks (land, ice, lakes, etc.) from shapefiles to meta object.
 
-    This function searches for all configuration keys matching the pattern 'mask_*'
-    (e.g., 'mask_land_gshhs_f', 'mask_ice', 'mask_hydrolakes', etc.)
-    and applies them to the metadata object.
+    Configuration format:
+      masks:
+        land:
+          - name: 'gshhsH'
+            path: '/path/to/mask.shp'
+          - name: 'custom_land'
+            path: '/path/to/custom.shp'
+        ice:
+          - name: 'ice_mask'
+            path: '/path/to/ice.shp'
+
+    Note: xsar will automatically add '_mask' suffix to the variable names in the dataset.
+    For example, 'gshhsH' becomes 'gshhsH_mask' in the xarray dataset.
 
     Parameters
     ----------
-    meta : obj `xsar.BaseMeta` (one of the supported SAR mission)
-        Metadata object to apply the masks to
+    meta : xsar.BaseMeta
+        Metadata object to add mask features to. Must have a set_mask_feature method.
+
+    Returns
+    -------
+    dict
+        Dictionary with mask categories as keys and lists of mask names as values.
+        Names are returned WITHOUT the '_mask' suffix that xsar adds internally.
+        Example: {'land': ['gshhsH', 'custom_land'], 'ice': ['ice_mask']}
+
+    Raises
+    ------
+    AttributeError
+        If meta object doesn't have set_mask_feature method
+    """
+    # Validate meta object has required method
+    if not hasattr(meta, 'set_mask_feature'):
+        raise AttributeError(
+            f"Meta object of type {type(meta).__name__} must have a 'set_mask_feature' method")
+
+    conf = getConf()
+    masks_by_category = {}
+
+    # Check for 'masks' key
+    if "masks" in conf and isinstance(conf["masks"], dict):
+        logging.debug("Found 'masks' configuration")
+
+        for category, mask_list in conf["masks"].items():
+            if isinstance(mask_list, list):
+                masks_by_category[category] = []
+                for mask_item in mask_list:
+                    if isinstance(mask_item, dict) and "path" in mask_item and "name" in mask_item:
+                        mask_name = mask_item["name"]
+                        mask_path = mask_item["path"]
+                        try:
+                            logging.debug("%s path: %s", mask_name, mask_path)
+                            meta.set_mask_feature(mask_name, mask_path)
+                            logging.info(
+                                "Mask feature '%s' set from %s", mask_name, mask_path)
+                            masks_by_category[category].append(mask_name)
+                        except (IOError, OSError, FileNotFoundError) as e:
+                            logging.error(
+                                "Failed to load mask file '%s' from path '%s': %s",
+                                mask_name, mask_path, str(e))
+                            logging.debug("%s", traceback.format_exc())
+                        except (ValueError, RuntimeError) as e:
+                            logging.error(
+                                "Failed to process mask '%s': %s", mask_name, str(e))
+                            logging.debug("%s", traceback.format_exc())
+                    else:
+                        logging.warning(
+                            "Invalid mask configuration in category '%s': missing 'name' or 'path' field",
+                            category)
+            else:
+                logging.warning(
+                    "Mask category '%s' should contain a list, got %s",
+                    category, type(mask_list).__name__
+                )
+
+    return masks_by_category
+
+
+def mergeLandMasks(xr_dataset: xr.Dataset, land_mask_names: list) -> xr.Dataset:
+    """
+    Merge multiple land masks into the main land_mask variable.
+
+    This function takes all individual land masks added via addMasks_toMeta() and combines
+    them using a logical OR operation to create a unified land mask that covers
+    all land areas from all sources.
+
+    Parameters
+    ----------
+    xr_dataset : xr.Dataset
+        Dataset containing individual land mask variables. Must contain a 'land_mask' variable.
+    land_mask_names : list of str
+        Names of the land mask variables to merge (WITHOUT the '_mask' suffix).
+        For example: ['gshhsH', 'custom_land'].
+        These names will have XSAR_MASK_SUFFIX automatically appended to match
+        the variable names in the dataset.
+
+    Returns
+    -------
+    xr.Dataset
+        The input dataset with its land_mask variable updated by merging all specified masks.
+        Note: The dataset is modified in place AND returned for convenience.
+
+    Raises
+    ------
+    ValueError
+        If 'land_mask' variable is not present in the dataset
+    """
+    # Validate that land_mask exists in the dataset
+    if "land_mask" not in xr_dataset:
+        raise ValueError(
+            "Dataset must contain a 'land_mask' variable. "
+            f"Available variables: {list(xr_dataset.data_vars.keys())}")
+
+    if not land_mask_names:
+        logging.debug("No additional land masks to merge")
+        return xr_dataset
+
+    logging.info("Merging %d land masks: %s", len(
+        land_mask_names), land_mask_names)
+
+    # Start with the default land_mask from xsar
+    merged_mask = xr_dataset["land_mask"].values.astype("uint8")
+
+    # Merge all configured land masks
+    for mask_name in land_mask_names:
+        # xsar adds XSAR_MASK_SUFFIX to mask names in the dataset
+        dataset_mask_name = f"{mask_name}{XSAR_MASK_SUFFIX}"
+
+        if dataset_mask_name in xr_dataset:
+            logging.info("Merging mask '%s' into land_mask", dataset_mask_name)
+            mask_values = xr_dataset[dataset_mask_name].values.astype("uint8")
+            # Logical OR: any pixel marked as land (1) in any mask becomes land
+            merged_mask = np.maximum(merged_mask, mask_values)
+        else:
+            logging.warning(
+                "Mask '%s' not found in dataset, skipping", dataset_mask_name)
+
+    # Update the main land_mask
+    xr_dataset.land_mask.values = merged_mask
+    logging.info("Land masks merged")
+
+    return xr_dataset
+
+
+def processLandMask(xr_dataset, dilation_iterations=3, merged_masks=None):
+    """
+    Process land mask to create a 3-level mask system with coastal zone detection.
+
+    This function:
+    1. Takes the original land_mask (merged from all configured sources)
+    2. Applies binary dilation to detect coastal zones
+    3. Creates a 3-level land_mask:
+       - 0 = ocean (water far from coast)
+       - 1 = coastal (zone between original mask and dilated mask)
+       - 2 = land (original land mask)
+
+    Parameters
+    ----------
+    xr_dataset : xarray.Dataset
+        Dataset containing the land_mask variable
+    dilation_iterations : int, optional
+        Number of dilation iterations to define coastal zone width (default: 3)
+    merged_masks : list of str, optional
+        Names of masks that were merged into land_mask (for history tracking)
 
     Returns
     -------
     None
-        Modifies meta object in place by setting mask features
+        Modifies xr_dataset.land_mask in place
     """
+    logging.info("Processing land mask and adding a coastal zone")
 
-    # Find all mask configurations (pattern: mask_*)
-    conf = getConf()
-    mask_keys = [key for key in conf.keys() if key.startswith("mask_")]
+    # Store original land mask (2 = land)
+    original_land_mask = xr_dataset["land_mask"].values.astype("uint8")
 
-    for mask_key in mask_keys:
-        try:
-            mask_config = conf[mask_key]
+    # Apply dilation to create coastal zone
+    dilated_mask = binary_dilation(
+        original_land_mask,
+        structure=np.ones((3, 3), np.uint8),
+        iterations=dilation_iterations,
+    )
 
-            # Validate configuration
-            if not isinstance(mask_config, dict):
-                logging.warning(
-                    "Mask configuration '%s' should be a dict with 'path' key, skipping",
-                    mask_key)
-                continue
+    # Create 3-level mask
+    # Start with all zeros (ocean)
+    three_level_mask = np.zeros_like(original_land_mask, dtype="uint8")
 
-            if "path" not in mask_config:
-                logging.warning(
-                    "Mask configuration '%s' missing required 'path' key, skipping",
-                    mask_key)
-                continue
+    # Mark land areas (2)
+    three_level_mask[original_land_mask == 1] = 2
 
-            mask_path = mask_config["path"]
+    # Mark coastal areas (1) - dilated area minus original land
+    coastal_zone = (dilated_mask == 1) & (original_land_mask == 0)
+    three_level_mask[coastal_zone] = 1
 
-            logging.debug("%s path : %s", mask_key, mask_path)
+    # Update the land_mask with 3-level system
+    xr_dataset.land_mask.values = three_level_mask
 
-            # Set mask feature with shapefile path as string
-            # xsar will handle the loading internally and bbox filtering
-            # Using str is recommended to avoid serialization issues
-            key_mask_xsar = mask_key.replace("mask_", "")
-            meta.set_mask_feature(key_mask_xsar, mask_path)
-            logging.info(
-                "Mask feature '%s' set from %s",
-                mask_key, mask_path)
+    # Update attributes
+    xr_dataset.land_mask.attrs["long_name"] = "Land mask with coastal zone"
+    xr_dataset.land_mask.attrs["valid_range"] = np.array([0, 2])
+    xr_dataset.land_mask.attrs["flag_values"] = np.array([0, 1, 2])
+    xr_dataset.land_mask.attrs["flag_meanings"] = "ocean coastal land"
+    xr_dataset.land_mask.attrs["meaning"] = "0: ocean, 1: coastal, 2: land"
 
-            # WARNING: Mask merge strategy is not yet implemented since this is a feature in test.
-            # The new mask is registered in xsar but not applied to the land_mask or mask
-            logging.warning(
-                "Mask merge strategy not implemented: mask '%s' is registered but not applied to land_mask. Land mask kept with cartopy by default.",
-                mask_key)
+    # Append to history instead of replacing
+    existing_history = xr_dataset.land_mask.attrs.get("history", "")
 
-        except Exception as e:
-            logging.error(
-                "Failed to apply mask '%s': %s",
-                mask_key, str(e))
-            logging.debug("%s", traceback.format_exc())
-            # Continue with other masks even if one fails
+    # Build history message
+    if merged_masks:
+        merge_info = f"merged with {', '.join(merged_masks)}"
+    else:
+        merge_info = ""
+
+    new_history = f"{merge_info}3-level land mask with coastal zone detection via binary dilation"
+
+    if existing_history:
+        xr_dataset.land_mask.attrs["history"] = existing_history + \
+            "; " + new_history
+    else:
+        xr_dataset.land_mask.attrs["history"] = new_history
 
 
 def getAncillary(meta, ancillary_name="ecmwf"):
@@ -866,8 +1027,8 @@ def preprocess(
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
 
-    # Apply masks if configured (land, ice, lakes, etc.)
-    applyMasks(meta)
+    # Add masks to meta if configured (land, ice, lakes, etc.)
+    masks_by_category = addMasks_toMeta(meta)
 
     # si une des deux n'est pas VV VH HH HV on ne fait rien
     if not all([pol in ["VV", "VH", "HH", "HV"] for pol in meta.pols.split(" ")]):
@@ -1117,33 +1278,38 @@ def preprocess(
     xr_dataset.elevation.attrs["standard_name"] = "elevation"
 
     # offboresight
-    # TOREMOVE
-    if "offboresight" in xr_dataset:
-        xr_dataset.offboresight.attrs["units"] = "degrees"
-        xr_dataset.offboresight.attrs["long_name"] = (
-            "Offboresight angle at wind cell center"
-        )
-        xr_dataset.elevation.attrs["standard_name"] = "offboresight"
-
-    # masks (no ice / no_valid)
-    xr_dataset.land_mask.values = binary_dilation(
-        xr_dataset["land_mask"].values.astype("uint8"),
-        structure=np.ones((3, 3), np.uint8),
-        iterations=3,
+    xr_dataset.offboresight.attrs["units"] = "degrees"
+    xr_dataset.offboresight.attrs["long_name"] = (
+        "Offboresight angle at wind cell center"
     )
-    xr_dataset.land_mask.attrs["long_name"] = "Mask of data"
-    xr_dataset.land_mask.attrs["valid_range"] = np.array([0, 1])
-    xr_dataset.land_mask.attrs["flag_values"] = np.array([0, 1])
-    xr_dataset.land_mask.attrs["flag_meanings"] = "valid no_valid"
+    xr_dataset.offboresight.attrs["standard_name"] = "offboresight"
+
+    # merge land masks
+    conf = getConf()
+    land_mask_strategy = conf.get("LAND_MASK_STRATEGY", "merge")
+    logging.info(f"land_mask_strategy = {land_mask_strategy}")
+
+    merged_land_masks = None
+    if land_mask_strategy == "merge" and "land" in masks_by_category:
+        mergeLandMasks(xr_dataset, masks_by_category["land"])
+        merged_land_masks = masks_by_category["land"]
+
+    # Process land mask with coastal zone detection (3-level system)
+    # 0 = ocean, 1 = coastal, 2 = land
+    processLandMask(xr_dataset, dilation_iterations=3,
+                    merged_masks=merged_land_masks)
 
     logging.debug("mask is a copy of land_mask")
 
+    # Create main mask from land_mask
+    # For now, mask uses the same values as land_mask
+    # Can be extended later to include ice (value 3) and other categories
     xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask)
     xr_dataset.mask.attrs = {}
     xr_dataset.mask.attrs["long_name"] = "Mask of data"
     xr_dataset.mask.attrs["valid_range"] = np.array([0, 3])
     xr_dataset.mask.attrs["flag_values"] = np.array([0, 1, 2, 3])
-    xr_dataset.mask.attrs["flag_meanings"] = "valid land ice no_valid"
+    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice"
 
     # ancillary
     xr_dataset["ancillary_wind_direction"] = (
@@ -1394,13 +1560,12 @@ def process_gradients(xr_dataset, config):
 
         xr_dataset_100["sigma0_detrend"] = sigma0_detrend_combined
 
-    xr_dataset_100.land_mask.values = binary_dilation(
-        xr_dataset_100["land_mask"].values.astype("uint8"),
-        structure=np.ones((3, 3), np.uint8),
-        iterations=3,
-    )
+    # Process land mask with coastal zone detection (3-level system)
+    processLandMask(xr_dataset_100, dilation_iterations=3)
+
+    # Mask sigma0_detrend where land_mask > 0 (coastal or land)
     xr_dataset_100["sigma0_detrend"] = xr.where(
-        xr_dataset_100["land_mask"], np.nan, xr_dataset_100["sigma0"]
+        xr_dataset_100["land_mask"] > 0, np.nan, xr_dataset_100["sigma0"]
     ).transpose(*xr_dataset_100["sigma0"].dims)
 
     xr_dataset_100["ancillary_wind"] = (
@@ -1478,6 +1643,14 @@ def makeL2(
     xr_dataset, out_file, config = preprocess(
         filename, outdir, config_path, overwrite, resolution
     )
+
+    # drop other masks
+    kept_masks = ["mask", "land_mask"]
+    vars_to_drop = [
+        v for v in xr_dataset.data_vars
+        if "mask" in v and v not in kept_masks
+    ]
+    xr_dataset = xr_dataset.drop_vars(vars_to_drop)
 
     if config["add_gradientsfeatures"]:
         xr_dataset, xr_dataset_streaks = process_gradients(xr_dataset, config)
