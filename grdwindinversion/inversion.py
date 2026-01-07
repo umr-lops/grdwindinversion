@@ -33,6 +33,18 @@ cv2.setNumThreads(1)
 
 root_logger = logging.getLogger("grdwindinversion.inversion")
 
+# Sensor metadata registry
+SENSOR_METADATA = {
+    "S1A": ("S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "S1B": ("S1B", "SENTINEL-1 B", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "S1C": ("S1C", "SENTINEL-1 C", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "S1D": ("S1D", "SENTINEL-1 D", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "RS2": ("RS2", "RADARSAT-2", xsar.RadarSat2Meta, xsar.RadarSat2Dataset),
+    "RCM1": ("RCM", "RADARSAT Constellation 1", xsar.RcmMeta, xsar.RcmDataset),
+    "RCM2": ("RCM", "RADARSAT Constellation 2", xsar.RcmMeta, xsar.RcmDataset),
+    "RCM3": ("RCM", "RADARSAT Constellation 3", xsar.RcmMeta, xsar.RcmDataset),
+}
+
 
 def getSensorMetaDataset(filename):
     """
@@ -48,27 +60,14 @@ def getSensorMetaDataset(filename):
     tuple
         sensor name, sensor long name, meta function, dataset function
     """
-    if "S1A" in filename:
-        return "S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "S1B" in filename:
-        return "S1B", "SENTINEL-1 B", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "S1C" in filename:
-        return "S1C", "SENTINEL-1 C", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "S1D" in filename:
-        return "S1D", "SENTINEL-1 D", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "RS2" in filename:
-        return "RS2", "RADARSAT-2", xsar.RadarSat2Meta, xsar.RadarSat2Dataset
-    elif "RCM1" in filename:
-        return "RCM", "RADARSAT Constellation 1", xsar.RcmMeta, xsar.RcmDataset
-    elif "RCM2" in filename:
-        return "RCM", "RADARSAT Constellation 2", xsar.RcmMeta, xsar.RcmDataset
-    elif "RCM3" in filename:
-        return "RCM", "RADARSAT Constellation 3", xsar.RcmMeta, xsar.RcmDataset
+    for sensor_key, sensor_info in SENSOR_METADATA.items():
+        if sensor_key in filename:
+            return sensor_info
 
-    else:
-        raise ValueError(
-            "must be S1A|S1B|S1C|S1D|RS2|RCM1|RCM2|RCM3, got filename %s" % filename
-        )
+    supported_sensors = "|".join(SENSOR_METADATA.keys())
+    raise ValueError(
+        f"must be {supported_sensors}, got filename {filename}"
+    )
 
 
 def getOutputName(
@@ -96,20 +95,16 @@ def getOutputName(
         output filename
     """
     basename = os.path.basename(input_file)
-    basename_match = basename
 
-    if sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D":
+    if sensor in ["S1A", "S1B", "S1C", "S1D"]:
+        # Example: S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE
         regex = re.compile(
-            "(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
+            r"(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
         )
-        template = string.Template(
-            "${MISSIONID}_${SWATH}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POLARIZATION}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE"
-        )
-        # S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F
-        match = regex.match(basename_match)
+        match = regex.match(basename)
         if not match:
             raise AttributeError(
-                f"S1 file {basename_match} does not match the expected pattern"
+                f"S1 file {basename} does not match the expected pattern"
             )
 
         (
@@ -126,37 +121,33 @@ def getOutputName(
             TAKEID,
             PRODID,
         ) = match.groups()
-        # last two terms of polarization are removed
         new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{POLARIZATION.lower()}-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
+
     elif sensor == "RS2":
+        # Example: RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF
         regex = re.compile(
-            "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)"
+            r"(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)"
         )
-        # RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF
-        template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${SWATH}_${DATE}_${TIME}_${POLARIZATION}_${LAST}"
-        )
-        match = regex.match(basename_match)
+        match = regex.match(basename)
         if not match:
             raise AttributeError(
-                f"RC2 file {basename_match} does not match the expected pattern"
+                f"RS2 file {basename} does not match the expected pattern"
             )
 
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, LAST = (
             match.groups()
         )
         new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxxxx-xxxxx.nc"
-    elif sensor == "RCM":
 
+    elif sensor == "RCM":
+        # Example: RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
         regex = re.compile(
             r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z0-9]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$"
         )
-        # RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
-
-        match = regex.match(basename_match)
+        match = regex.match(basename)
         if not match:
             raise AttributeError(
-                f"RCM file {basename_match} does not match the expected pattern"
+                f"RCM file {basename} does not match the expected pattern"
             )
 
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, PRODUCT = (
@@ -166,7 +157,8 @@ def getOutputName(
 
     else:
         raise ValueError(
-            "sensor must be S1A|S1B|S1C|S1D|RS2|RCM, got sensor %s" % sensor)
+            f"sensor must be S1A|S1B|S1C|S1D|RS2|RCM, got sensor {sensor}"
+        )
 
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
@@ -228,8 +220,8 @@ def applyMasks(meta):
                 "Mask feature '%s' set from %s",
                 mask_key, mask_path)
 
-            # WARNING: Mask merge strategy is not yet implemented
-            # The mask is registered in xsar but not applied to the land_mask
+            # WARNING: Mask merge strategy is not yet implemented since this is a feature in test.
+            # The new mask is registered in xsar but not applied to the land_mask or mask
             logging.warning(
                 "Mask merge strategy not implemented: mask '%s' is registered but not applied to land_mask. Land mask kept with cartopy by default.",
                 mask_key)
