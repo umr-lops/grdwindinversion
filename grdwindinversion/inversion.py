@@ -1289,6 +1289,9 @@ def preprocess(
     land_mask_strategy = conf.get("LAND_MASK_STRATEGY", "merge")
     logging.info(f"land_mask_strategy = {land_mask_strategy}")
 
+    # Store masks_by_category in config for later cleanup
+    config["masks_by_category"] = masks_by_category
+
     merged_land_masks = None
     if land_mask_strategy == "merge" and "land" in masks_by_category:
         mergeLandMasks(xr_dataset, masks_by_category["land"])
@@ -1317,8 +1320,9 @@ def preprocess(
                           xr_dataset.model_U10)) + 180
     ) % 360
 
+    # Keep ocean (0) and coastal (1) zones for ancillary wind
     xr_dataset["ancillary_wind_direction"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["ancillary_wind_direction"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["ancillary_wind_direction"]
     ).transpose(*xr_dataset["ancillary_wind_direction"].dims)
     xr_dataset["ancillary_wind_direction"].attrs = {}
     xr_dataset["ancillary_wind_direction"].attrs["units"] = "degrees_north"
@@ -1331,7 +1335,7 @@ def preprocess(
         xr_dataset["model_U10"] ** 2 + xr_dataset["model_V10"] ** 2
     )
     xr_dataset["ancillary_wind_speed"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["ancillary_wind_speed"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["ancillary_wind_speed"]
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
     xr_dataset["ancillary_wind_speed"].attrs = {}
     xr_dataset["ancillary_wind_speed"].attrs["units"] = "m s^-1"
@@ -1341,7 +1345,7 @@ def preprocess(
     xr_dataset["ancillary_wind_speed"].attrs["standart_name"] = "wind_speed"
 
     xr_dataset["ancillary_wind"] = xr.where(
-        xr_dataset["mask"],
+        xr_dataset["mask"] >= 2,
         np.nan,
         (
             xr_dataset.ancillary_wind_speed
@@ -1359,17 +1363,10 @@ def preprocess(
     )
     xr_dataset = xr_dataset.drop_vars(["model_U10", "model_V10"])
 
-    # rajout d'un mask pour les valeurs <=0:
-    xr_dataset["sigma0_mask"] = xr.where(
-        xr_dataset["sigma0_ocean"] <= 0, 1, 0
-    ).transpose(*xr_dataset["sigma0"].dims)
-    xr_dataset.sigma0_mask.attrs["valid_range"] = np.array([0, 1])
-    xr_dataset.sigma0_mask.attrs["flag_values"] = np.array([0, 1])
-    xr_dataset.sigma0_mask.attrs["flag_meanings"] = "valid no_valid"
-
     # nrcs processing
+    # Keep ocean (0) and coastal (1) zones, mask out land (2) and ice (3)
     xr_dataset["sigma0_ocean"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["sigma0"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["sigma0"]
     ).transpose(*xr_dataset["sigma0"].dims)
     xr_dataset["sigma0_ocean"].attrs = xr_dataset["sigma0"].attrs
     #  we forced it to 1e-15
@@ -1381,8 +1378,17 @@ def preprocess(
         xr_dataset["sigma0_ocean"] <= 0, 1e-15, xr_dataset["sigma0_ocean"]
     )
 
+    # rajout d'un mask pour les valeurs <=0:
+    xr_dataset["sigma0_mask"] = xr.where(
+        xr_dataset["sigma0_ocean"] <= 0, 1, 0
+    ).transpose(*xr_dataset["sigma0"].dims)
+    xr_dataset.sigma0_mask.attrs["valid_range"] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs["flag_values"] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs["flag_meanings"] = "valid no_valid"
+
+    # Keep ocean (0) and coastal (1) zones for sigma0_ocean_raw too
     xr_dataset["sigma0_ocean_raw"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["sigma0_raw"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["sigma0_raw"]
     ).transpose(*xr_dataset["sigma0_raw"].dims)
 
     xr_dataset["sigma0_ocean_raw"].attrs = xr_dataset["sigma0_raw"].attrs
@@ -1564,9 +1570,10 @@ def process_gradients(xr_dataset, config):
     # Process land mask with coastal zone detection (3-level system)
     processLandMask(xr_dataset_100, dilation_iterations=3)
 
-    # Mask sigma0_detrend where land_mask > 0 (coastal or land)
+    # Mask sigma0_detrend where land_mask >= 2 (land and ice)
+    # Keep ocean (0) and coastal (1) zones
     xr_dataset_100["sigma0_detrend"] = xr.where(
-        xr_dataset_100["land_mask"] > 0, np.nan, xr_dataset_100["sigma0"]
+        xr_dataset_100["land_mask"] >= 2, np.nan, xr_dataset_100["sigma0"]
     ).transpose(*xr_dataset_100["sigma0"].dims)
 
     xr_dataset_100["ancillary_wind"] = (
@@ -1645,13 +1652,18 @@ def makeL2(
         filename, outdir, config_path, overwrite, resolution
     )
 
-    # drop other masks
-    kept_masks = ["mask", "land_mask"]
+    # Drop only masks added from config (not internal masks like sigma0_mask, owiMask_Nrcs)
+    masks_by_category = config.get("masks_by_category", {})
+    masks_to_drop = []
+    for category, mask_list in masks_by_category.items():
+        masks_to_drop.extend(mask_list)
+
+    # Only drop masks that actually exist in the dataset (with XSAR suffix)
     vars_to_drop = [
-        v for v in xr_dataset.data_vars
-        if "mask" in v and v not in kept_masks
-    ]
-    xr_dataset = xr_dataset.drop_vars(vars_to_drop)
+        m+XSAR_MASK_SUFFIX for m in masks_to_drop if (m+XSAR_MASK_SUFFIX) in xr_dataset.data_vars]
+    if vars_to_drop:
+        logging.info(f"Dropping external masks from config: {vars_to_drop}")
+        xr_dataset = xr_dataset.drop_vars(vars_to_drop)
 
     if config["add_gradientsfeatures"]:
         xr_dataset, xr_dataset_streaks = process_gradients(xr_dataset, config)
