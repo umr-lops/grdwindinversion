@@ -1359,6 +1359,14 @@ def preprocess(
     )
     xr_dataset = xr_dataset.drop_vars(["model_U10", "model_V10"])
 
+    # rajout d'un mask pour les valeurs <=0:
+    xr_dataset["sigma0_mask"] = xr.where(
+        xr_dataset["sigma0_ocean"] <= 0, 1, 0
+    ).transpose(*xr_dataset["sigma0"].dims)
+    xr_dataset.sigma0_mask.attrs["valid_range"] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs["flag_values"] = np.array([0, 1])
+    xr_dataset.sigma0_mask.attrs["flag_meanings"] = "valid no_valid"
+
     # nrcs processing
     xr_dataset["sigma0_ocean"] = xr.where(
         xr_dataset["mask"], np.nan, xr_dataset["sigma0"]
@@ -1369,13 +1377,6 @@ def preprocess(
         "comment"
     ] = "clipped, no values <=0 ; 1e-15 instread"
 
-    # rajout d'un mask pour les valeurs <=0:
-    xr_dataset["sigma0_mask"] = xr.where(
-        xr_dataset["sigma0_ocean"] <= 0, 1, 0
-    ).transpose(*xr_dataset["sigma0"].dims)
-    xr_dataset.sigma0_mask.attrs["valid_range"] = np.array([0, 1])
-    xr_dataset.sigma0_mask.attrs["flag_values"] = np.array([0, 1])
-    xr_dataset.sigma0_mask.attrs["flag_meanings"] = "valid no_valid"
     xr_dataset["sigma0_ocean"] = xr.where(
         xr_dataset["sigma0_ocean"] <= 0, 1e-15, xr_dataset["sigma0_ocean"]
     )
