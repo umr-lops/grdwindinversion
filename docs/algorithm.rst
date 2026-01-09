@@ -1,4 +1,0 @@
-Algorithm description
-=====================
-
-TODO

@@ -32,13 +32,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/agrouaze/grdwindinversion
+    $ git clone git://github.com/umr-lops/grdwindinversion
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl -OJL https://github.com/agrouaze/grdwindinversion/tarball/master
+    $ curl -OJL https://github.com/umr-lops/grdwindinversion/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +47,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/agrouaze/grdwindinversion
-.. _tarball: https://github.com/agrouaze/grdwindinversion/tarball/master
+.. _Github repo: https://github.com/umr-lops/grdwindinversion
+.. _tarball: https://github.com/umr-lops/grdwindinversion/tarball/master
