@@ -944,8 +944,7 @@ def makeL2asOwi(xr_dataset, config):
             "sigma0_ocean_raw",
             "sigma0_raw",
             "ancillary_wind",
-            "nesz",
-            "spatial_ref",
+            "nesz"
         ]
     )
     if "sigma0_raw__corrected" in xr_dataset:
@@ -1662,7 +1661,7 @@ def makeL2(
     vars_to_drop = [
         m+XSAR_MASK_SUFFIX for m in masks_to_drop if (m+XSAR_MASK_SUFFIX) in xr_dataset.data_vars]
     if vars_to_drop:
-        logging.info(f"Dropping external masks from config: {vars_to_drop}")
+        logging.info(f"Dropping external masks of dataset: {vars_to_drop}")
         xr_dataset = xr_dataset.drop_vars(vars_to_drop)
 
     if config["add_gradientsfeatures"]:
