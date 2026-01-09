@@ -409,14 +409,24 @@ def getAncillary(meta, ancillary_name="ecmwf"):
     dict
         map model to SAR data
     """
+    logging.debug("conf: %s", getConf())
+    conf = getConf()
 
     if ancillary_name == "ecmwf":
-        logging.debug("conf: %s", getConf())
-        ec01 = getConf()["ecmwf_0100_1h"]
-        ec0125 = getConf()["ecmwf_0125_1h"]
-        logging.debug("ec01 : %s", ec01)
-        meta.set_raster("ecmwf_0100_1h", ec01)
-        meta.set_raster("ecmwf_0125_1h", ec0125)
+
+        ec01 = conf.get("ecmwf_0100_1h")
+        ec0125 = conf.get("ecmwf_0125_1h")
+
+        if ec01:
+            logging.debug("ec01 : %s", ec01)
+            meta.set_raster("ecmwf_0100_1h", ec01)
+        if ec0125:
+            logging.debug("ec0125 : %s", ec0125)
+            meta.set_raster("ecmwf_0125_1h", ec0125)
+
+        if not ec01 and not ec0125:
+            raise ValueError(
+                "At least one ECMWF model (ecmwf_0100_1h or ecmwf_0125_1h) must be configured")
 
         map_model = None
         # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
@@ -470,13 +480,15 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         return map_model
 
     elif ancillary_name == "era5":
-        era5_name = "era5_0250_1h"
-        logging.debug("conf: %s", getConf())
-        era0250 = getConf()[era5_name]
-        logging.debug("%s : %s", (era5_name, era0250))
-        meta.set_raster(era5_name, era0250)
+        era0250 = conf.get("era5_0250_1h")
 
-        era5_infos = meta.rasters.loc[era5_name]
+        if era0250:
+            logging.debug("era0250 : %s", era0250)
+            meta.set_raster("era5_0250_1h", era0250)
+        else:
+            raise ValueError("era5_0250_1h must be configured")
+
+        era5_infos = meta.rasters.loc["era5_0250_1h"]
         try:
             era5_file = era5_infos["get_function"](
                 era5_infos["resource"],
@@ -494,7 +506,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
             raise ValueError(f"era5 file {era5_file} not found")
 
         map_model = {
-            "%s_%s" % (era5_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
+            "%s_%s" % ("era5_0250_1h", uv): "model_%s" % uv for uv in ["U10", "V10"]
         }
         return map_model
 
