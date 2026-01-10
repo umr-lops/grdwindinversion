@@ -399,10 +399,13 @@ def getAncillary(meta, ancillary_name="ecmwf"):
     """
     Map ancillary wind from ECMWF or ERA5.
     This function is used to check if the model files are available and to map the model to the SAR data.
+    This function will use with priority the first model of the config file.
 
     Parameters
     ----------
     meta: obj `xsar.BaseMeta` (one of the supported SAR mission)
+    ancillary_name: str
+        Name of the ancillary source (ecmwf or era5)
 
     Returns
     -------
@@ -411,108 +414,76 @@ def getAncillary(meta, ancillary_name="ecmwf"):
     """
     logging.debug("conf: %s", getConf())
     conf = getConf()
+    if 'ancillary_sources' not in conf:
+        raise ValueError("Configuration must contain 'ancillary_sources'")
 
-    if ancillary_name == "ecmwf":
-
-        ec01 = conf.get("ecmwf_0100_1h")
-        ec0125 = conf.get("ecmwf_0125_1h")
-
-        if ec01:
-            logging.debug("ec01 : %s", ec01)
-            meta.set_raster("ecmwf_0100_1h", ec01)
-        if ec0125:
-            logging.debug("ec0125 : %s", ec0125)
-            meta.set_raster("ecmwf_0125_1h", ec0125)
-
-        if not ec01 and not ec0125:
-            raise ValueError(
-                "At least one ECMWF model (ecmwf_0100_1h or ecmwf_0125_1h) must be configured")
-
-        map_model = None
-        # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
-        for ecmwf_name in ["ecmwf_0125_1h", "ecmwf_0100_1h"]:
-            ecmwf_infos = meta.rasters.loc[ecmwf_name]
-            try:
-                ecmwf_file = ecmwf_infos["get_function"](
-                    ecmwf_infos["resource"],
-                    date=datetime.datetime.strptime(
-                        meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
-                    ),
-                )[1]
-            # temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
-            except Exception as e:
-                ecmwf_file = ecmwf_infos["get_function"](
-                    ecmwf_infos["resource"],
-                    date=datetime.datetime.strptime(
-                        meta.start_date, "%Y-%m-%d %H:%M:%S"
-                    ),
-                )[1]
-            if not os.path.isfile(ecmwf_file):
-                # temporary
-                # if repro does not exist we look at not repro folder (only one will exist after)
-                """
-                if ecmwf_name == "ecmwf_0100_1h":
-                    ecmwf_infos['resource'] = ecmwf_infos['resource'].replace(
-                        "netcdf_light_REPRO_tree", "netcdf_light")
-                    try:
-                        ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                                 date=datetime.datetime.strptime(meta.start_date,
-                                                                                                 '%Y-%m-%d %H:%M:%S.%f'))[1]
-                    except Exception as e:
-                        ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                                 date=datetime.datetime.strptime(meta.start_date,
-                                                                                                 '%Y-%m-%d %H:%M:%S'))[1]
-
-                    if not os.path.isfile(ecmwf_file):
-                        meta.rasters = meta.rasters.drop([ecmwf_name])
-                    else:
-                        map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in [
-                            'U10', 'V10']}
-
-                else:
-                """
-                meta.rasters = meta.rasters.drop([ecmwf_name])
-            else:
-                map_model = {
-                    "%s_%s" % (ecmwf_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
-                }
-
-        return map_model
-
-    elif ancillary_name == "era5":
-        era0250 = conf.get("era5_0250_1h")
-
-        if era0250:
-            logging.debug("era0250 : %s", era0250)
-            meta.set_raster("era5_0250_1h", era0250)
-        else:
-            raise ValueError("era5_0250_1h must be configured")
-
-        era5_infos = meta.rasters.loc["era5_0250_1h"]
-        try:
-            era5_file = era5_infos["get_function"](
-                era5_infos["resource"],
-                date=datetime.datetime.strptime(
-                    meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
-                ),
-            )[1]
-        except Exception as e:
-            era5_file = era5_infos["get_function"](
-                era5_infos["resource"],
-                date=datetime.datetime.strptime(
-                    meta.start_date, "%Y-%m-%d %H:%M:%S"),
-            )[1]
-        if not os.path.isfile(era5_file):
-            raise ValueError(f"era5 file {era5_file} not found")
-
-        map_model = {
-            "%s_%s" % ("era5_0250_1h", uv): "model_%s" % uv for uv in ["U10", "V10"]
-        }
-        return map_model
-
-    else:
+    if ancillary_name not in conf['ancillary_sources']:
         raise ValueError(
-            "ancillary_name must be ecmwf/era5, got %s" % ancillary_name)
+            f"Configuration 'ancillary_sources' must contain '{ancillary_name}'")
+
+    if ancillary_name not in ["ecmwf", "era5"]:
+        logging.warning("We advice to use either ecmwf or era5.")
+
+    ancillary_sources = conf['ancillary_sources'][ancillary_name]
+    if not ancillary_sources:
+        raise ValueError(
+            f"At least one ancillary model {ancillary_name} must be configured in ancillary_sources")
+
+    map_model = None
+    selected_name = None
+    selected_path = None
+    tried_names = []
+
+    # Loop through models in config order to find the first one that exists
+    for source in ancillary_sources:
+        model_name = source['name']
+        model_path = source['path']
+        logging.debug("%s : %s", model_name, model_path)
+
+        # Set raster to check if file exists
+        meta.set_raster(model_name, model_path)
+        tried_names.append(model_name)
+
+        model_info = meta.rasters.loc[model_name]
+
+        model_file = model_info["get_function"](
+            model_info["resource"],
+            date=datetime.datetime.strptime(
+                meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
+            ),
+        )[1]
+
+        if os.path.isfile(model_file):
+            # File exists! This is our selection
+            selected_name = model_name
+            selected_path = model_path
+            map_model = {
+                "%s_%s" % (selected_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
+            }
+            # Log selection
+            if len(ancillary_sources) > 1:
+                logging.info(
+                    f"Multiple {ancillary_name} models configured. Using {selected_name} (priority order)")
+            else:
+                logging.info(
+                    f"Only one {ancillary_name} model configured: using {selected_name}")
+            break
+
+    # Clean up: remove all tried models EXCEPT the selected one
+    if selected_name is not None:
+        for name in tried_names:
+            if name != selected_name:
+                meta.rasters = meta.rasters.drop([name])
+
+    # Prepare metadata for traceability
+    ancillary_metadata = None
+    if selected_name is not None:
+        ancillary_metadata = {
+            'source': selected_name,
+            'source_path': selected_path
+        }
+
+    return map_model, ancillary_metadata
 
 
 @timing(logger=root_logger.debug)
@@ -545,7 +516,7 @@ def inverse_dsig_wspd(
         ancillary wind
             | (for example ecmwf winds), in **ANTENNA convention**,
     nesz_cr: xarray.DataArray
-        noise equivalent sigma0 | flattened or not
+        noise equivalent sigma0 | flattened or not
     dsig_cr_name:  str
         dsig_cr name
     model_co: str
@@ -957,6 +928,9 @@ def makeL2asOwi(xr_dataset, config):
             "sigma0_raw",
             "ancillary_wind",
             "nesz"
+            "model_U10",
+            "model_V10"
+
         ]
     )
     if "sigma0_raw__corrected" in xr_dataset:
@@ -1110,7 +1084,7 @@ def preprocess(
         raise FileExistsError("outfile %s already exists" % out_file)
 
     ancillary_name = config["ancillary"]
-    map_model = getAncillary(meta, ancillary_name)
+    map_model, ancillary_metadata = getAncillary(meta, ancillary_name)
     if map_model is None:
         raise Exception(
             f"the weather model is not set `map_model` is None -> you probably don't have access to {ancillary_name} archive"
@@ -1153,6 +1127,13 @@ def preprocess(
 
         xr_dataset = xr_dataset.rename(map_model)
         xr_dataset.attrs = xsar_dataset.dataset.attrs
+
+        # Add ancillary metadata to model variables
+        if ancillary_metadata is not None:
+            for var_name in ['model_U10', 'model_V10']:
+                if var_name in xr_dataset:
+                    for attr_key, attr_value in ancillary_metadata.items():
+                        xr_dataset[var_name].attrs[attr_key] = attr_value
 
     except Exception as e:
         logging.info("%s", traceback.format_exc())
@@ -1369,10 +1350,17 @@ def preprocess(
         ),
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
 
-    xr_dataset.attrs["ancillary_source"] = (
-        xr_dataset["model_U10"].attrs["history"].split("decoded: ")[1].strip()
-    )
-    xr_dataset = xr_dataset.drop_vars(["model_U10", "model_V10"])
+    # Store ancillary source in dataset attributes
+    if "source" in xr_dataset["model_U10"].attrs:
+        xr_dataset.attrs["ancillary_source"] = xr_dataset["model_U10"].attrs["source"]
+        if "source_path" in xr_dataset["model_U10"].attrs:
+            xr_dataset.attrs["ancillary_source_path"] = xr_dataset["model_U10"].attrs["source_path"]
+    else:
+        # Fallback to old attrs not present
+        xr_dataset.attrs["ancillary_source"] = (
+            xr_dataset["model_U10"].attrs["history"].split("decoded: ")[
+                1].strip()
+        )
 
     # nrcs processing
     # Keep ocean (0) and coastal (1) zones, mask out land (2) and ice (3)
@@ -1389,7 +1377,7 @@ def preprocess(
         xr_dataset["sigma0_ocean"] <= 0, 1e-15, xr_dataset["sigma0_ocean"]
     )
 
-    # rajout d'un mask pour les valeurs <=0:
+    # add a mask for values <=0:
     xr_dataset["sigma0_mask"] = xr.where(
         xr_dataset["sigma0_ocean"] <= 0, 1, 0
     ).transpose(*xr_dataset["sigma0"].dims)
@@ -1410,7 +1398,6 @@ def preprocess(
 
     # processing
     if dual_pol:
-
         xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
 

@@ -14,7 +14,7 @@ class TestGetAncillary(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.mock_meta = Mock()
-        self.mock_meta.start_date = "2023-01-01 12:00:00.000"
+        self.mock_meta.start_date = "2023-01-01 12:00:00.123456"
         # Initialize with proper columns for rasters DataFrame
         self.mock_meta.rasters = pd.DataFrame(columns=['get_function', 'resource'])
 
@@ -25,13 +25,31 @@ class TestGetAncillary(unittest.TestCase):
         function should work without requiring ecmwf_0125_1h
         """
         mock_get_conf.return_value = {
-            'ecmwf_0100_1h': '/path/to/ecmwf_0100'
+            'ancillary_sources': {
+                'ecmwf': [
+                    {'name': 'ecmwf_0100_1h', 'path': '/path/to/ecmwf_0100'}
+                ]
+            }
         }
 
+        # Mock set_raster before calling getAncillary
+        def mock_set_raster(name, path):
+            mock_get_func = Mock(return_value=(None, '/nonexistent/file.nc'))
+            self.mock_meta.rasters.loc[name] = pd.Series({
+                'get_function': mock_get_func,
+                'resource': path
+            })
+        self.mock_meta.set_raster = mock_set_raster
+
+        # Mock drop to handle when file doesn't exist
+        self.mock_meta.rasters.drop = Mock(return_value=self.mock_meta.rasters)
+
         try:
-            getAncillary(self.mock_meta, ancillary_name='ecmwf')
-        except KeyError as e:
-            pytest.fail(f"Should handle single model, but raised KeyError: {e}")
+            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='ecmwf')
+            # Should not raise error
+            assert True
+        except (KeyError, ValueError) as e:
+            pytest.fail(f"Should handle single model, but raised error: {e}")
 
     @patch('grdwindinversion.inversion.getConf')
     def test_single_ecmwf_0125_1h_model(self, mock_get_conf):
@@ -40,13 +58,31 @@ class TestGetAncillary(unittest.TestCase):
         function should work without requiring ecmwf_0100_1h
         """
         mock_get_conf.return_value = {
-            'ecmwf_0125_1h': '/path/to/ecmwf_0125'
+            'ancillary_sources': {
+                'ecmwf': [
+                    {'name': 'ecmwf_0125_1h', 'path': '/path/to/ecmwf_0125'}
+                ]
+            }
         }
 
+        # Mock set_raster before calling getAncillary
+        def mock_set_raster(name, path):
+            mock_get_func = Mock(return_value=(None, '/nonexistent/file.nc'))
+            self.mock_meta.rasters.loc[name] = pd.Series({
+                'get_function': mock_get_func,
+                'resource': path
+            })
+        self.mock_meta.set_raster = mock_set_raster
+
+        # Mock drop to handle when file doesn't exist
+        self.mock_meta.rasters.drop = Mock(return_value=self.mock_meta.rasters)
+
         try:
-            getAncillary(self.mock_meta, ancillary_name='ecmwf')
-        except KeyError as e:
-            pytest.fail(f"Should handle single model, but raised KeyError: {e}")
+            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='ecmwf')
+            # Should not raise error
+            assert True
+        except (KeyError, ValueError) as e:
+            pytest.fail(f"Should handle single model, but raised error: {e}")
 
     @patch('grdwindinversion.inversion.getConf')
     def test_both_models_priority_ecmwf_0100_1h(self, mock_get_conf):
@@ -63,8 +99,12 @@ class TestGetAncillary(unittest.TestCase):
         try:
             # Configure both models
             mock_get_conf.return_value = {
-                'ecmwf_0100_1h': '/path/to/ecmwf_0100',
-                'ecmwf_0125_1h': '/path/to/ecmwf_0125'
+                'ancillary_sources': {
+                    'ecmwf': [
+                        {'name': 'ecmwf_0100_1h', 'path': '/path/to/ecmwf_0100'},
+                        {'name': 'ecmwf_0125_1h', 'path': '/path/to/ecmwf_0125'}
+                    ]
+                }
             }
 
             # Mock set_raster to add entries to rasters DataFrame
@@ -83,14 +123,19 @@ class TestGetAncillary(unittest.TestCase):
             self.mock_meta.set_raster = mock_set_raster
 
             # Call the function
-            result = getAncillary(self.mock_meta, ancillary_name='ecmwf')
+            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='ecmwf')
 
             # Verify that ecmwf_0100_1h is selected (not ecmwf_0125_1h)
-            assert result is not None, "map_model should not be None"
-            assert 'ecmwf_0100_1h_U10' in result, "Should select ecmwf_0100_1h"
-            assert 'ecmwf_0100_1h_V10' in result, "Should select ecmwf_0100_1h"
-            assert result['ecmwf_0100_1h_U10'] == 'model_U10'
-            assert result['ecmwf_0100_1h_V10'] == 'model_V10'
+            assert map_model is not None, "map_model should not be None"
+            assert 'ecmwf_0100_1h_U10' in map_model, "Should select ecmwf_0100_1h"
+            assert 'ecmwf_0100_1h_V10' in map_model, "Should select ecmwf_0100_1h"
+            assert map_model['ecmwf_0100_1h_U10'] == 'model_U10'
+            assert map_model['ecmwf_0100_1h_V10'] == 'model_V10'
+
+            # Verify metadata
+            assert metadata is not None, "metadata should not be None"
+            assert metadata['source'] == 'ecmwf_0100_1h'
+            assert 'source_path' in metadata
 
         finally:
             # Clean up temporary files
@@ -98,6 +143,55 @@ class TestGetAncillary(unittest.TestCase):
                 os.remove(file_0100)
             if os.path.exists(file_0125):
                 os.remove(file_0125)
+
+
+    @patch('grdwindinversion.inversion.getConf')
+    def test_era5_model(self, mock_get_conf):
+        """
+        When era5_0250_1h is configured,
+        function should work correctly
+        """
+        mock_get_conf.return_value = {
+            'ancillary_sources': {
+                'era5': [
+                    {'name': 'era5_0250_1h', 'path': '/path/to/era5_0250'}
+                ]
+            }
+        }
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='_era5.nc') as f_era5:
+            file_era5 = f_era5.name
+
+        try:
+            # Mock set_raster
+            def mock_set_raster(name, path):
+                mock_get_func = Mock(return_value=(None, file_era5))
+                self.mock_meta.rasters.loc[name] = pd.Series({
+                    'get_function': mock_get_func,
+                    'resource': path
+                })
+            self.mock_meta.set_raster = mock_set_raster
+
+            # Call the function
+            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='era5')
+
+            # Verify ERA5 is selected
+            assert map_model is not None, "map_model should not be None"
+            assert 'era5_0250_1h_U10' in map_model, "Should select era5_0250_1h"
+            assert 'era5_0250_1h_V10' in map_model, "Should select era5_0250_1h"
+            assert map_model['era5_0250_1h_U10'] == 'model_U10'
+            assert map_model['era5_0250_1h_V10'] == 'model_V10'
+
+            # Verify metadata
+            assert metadata is not None, "metadata should not be None"
+            assert metadata['source'] == 'era5_0250_1h'
+            assert 'source_path' in metadata
+
+        finally:
+            # Clean up temporary file
+            if os.path.exists(file_era5):
+                os.remove(file_era5)
 
 
 if __name__ == '__main__':
