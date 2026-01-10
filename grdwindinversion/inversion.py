@@ -397,7 +397,7 @@ def processLandMask(xr_dataset, dilation_iterations=3, merged_masks=None):
 
 def getAncillary(meta, ancillary_name="ecmwf"):
     """
-    Map ancillary wind from ECMWF or ERA5.
+    Map ancillary wind from "ecmwf" or "era5" or other sources.
     This function is used to check if the model files are available and to map the model to the SAR data.
     This function will use with priority the first model of the config file.
 
@@ -409,8 +409,10 @@ def getAncillary(meta, ancillary_name="ecmwf"):
 
     Returns
     -------
-    dict
-        map model to SAR data
+    tuple
+        (map_model, metadata) where:
+        - map_model (dict): mapping of model variables to SAR data
+        - metadata (dict): ancillary metadata with 'source' and 'source_path' keys
     """
     logging.debug("conf: %s", getConf())
     conf = getConf()

@@ -49,10 +49,28 @@ data_config.yaml Structure
 
 .. code-block:: yaml
 
-    # ECMWF at 0.1° resolution, 1 hour
-    'ecmwf_0100_1h': '/path/to/ecmwf/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc'
-    # ECMWF at 0.125° resolution, 1 hour
-    'ecmwf_0125_1h': '/path/to/ecmwf/%Y/%j/ecmwf_%Y%m%d%H%M.nc'
+    ancillary_sources:
+      ecmwf:
+        - name: 'ecmwf_0100_1h'
+          path: '/path/to/ecmwf/0.100deg/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc'
+        - name: 'ecmwf_0125_1h'
+          path: '/path/to/ecmwf/0.125deg/%Y/%j/ecmwf_%Y%m%d%H%M.nc'
+      era5:
+        - name: 'era5_0250_1h'
+          path: '/path/to/era5/%Y/%m/era_5-copernicus__%Y%m%d.nc'
+
+**Priority System**:
+
+When multiple models are configured for the same source (e.g., both ``ecmwf_0100_1h`` and ``ecmwf_0125_1h``),
+the function tries each model in the order listed and uses the first one for which a file exists.
+For example, with the configuration above, ``ecmwf_0100_1h`` will be tried first, and ``ecmwf_0125_1h``
+will be used as a fallback if the first file is not available.
+
+**Metadata Preservation**:
+
+The selected ancillary source name and full path are automatically stored in the output dataset attributes:
+- ``ancillary_source``: Name of the selected model (e.g., ``ecmwf_0100_1h``)
+- ``ancillary_source_path``: Full path to the selected file
 
 **Template Format**: Uses Python datetime format codes
 
