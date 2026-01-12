@@ -11,13 +11,15 @@ ancillary_sources:
     ecmwf:
         - name: "ecmwf_0100_1h"
           path: "/home/loc-datawork-cersat-public/provider/ecmwf/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc"
+
         - name: "ecmwf_0125_1h"
           path: "/home/loc-datawork-cersat-intranet/project/ecmwf/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc"
+
     era5:
-        - name: "era5_0250_1h"s
+        - name: "era5_0250_1h"
           path: "/home/ref-ecmwf/ERA5/%Y/%m/era_5-copernicus__%Y%m%d.nc"
 
-"sarwing_luts_path": "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/v1.6/"
-"nc_luts_path": "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/nc_luts"
-"lut_cmod7_path": "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script"
-"lut_ms1ahw_path": "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/v1.6/GMF_cmodms1ahw"
+sarwing_luts_path: "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/v1.6/"
+nc_luts_path: "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/nc_luts"
+lut_cmod7_path: "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script"
+lut_ms1ahw_path: "/home/loc-datawork-cersat-public/cache/project/sarwing/GMFS/v1.6/GMF_cmodms1ahw"
