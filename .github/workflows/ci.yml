@@ -67,7 +67,7 @@ jobs:
                   unzip /tmp/l1.zip -d ./test_data/
                   wget https://cloud.ifremer.fr/index.php/s/RgloaQ8gi8svYOe/download -O /tmp/auxiliary.zip
                   unzip /tmp/auxiliary.zip -d ./test_data/
-                  wget https://cloud.ifremer.fr/index.php/s/tAtsWwopwHjp00B -O /tmp/masks.zip
+                  wget https://cloud.ifremer.fr/index.php/s/oEUYYFqpYXELr7U/download -O /tmp/masks.zip
                   unzip /tmp/masks.zip -d ./test_data/
               timeout-minutes: 200 # Adjust depending on the size of your data
 
