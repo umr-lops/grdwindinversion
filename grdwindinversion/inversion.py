@@ -1351,12 +1351,21 @@ def preprocess(
             )
         ),
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
+    xr_dataset["ancillary_wind"].attrs = {}
+    xr_dataset["ancillary_wind"].attrs["long_name"] = f"{ancillary_name} wind in complex form for inversion"
+    xr_dataset["ancillary_wind"].attrs["description"] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
 
-    # Store ancillary source in dataset attributes
+    # Store ancillary source in dataset and ancillary variables attributes
     if "source" in xr_dataset["model_U10"].attrs:
         xr_dataset.attrs["ancillary_source"] = xr_dataset["model_U10"].attrs["source"]
         if "source_path" in xr_dataset["model_U10"].attrs:
             xr_dataset.attrs["ancillary_source_path"] = xr_dataset["model_U10"].attrs["source_path"]
+
+        # Copy metadata to ancillary variables
+        for var_name in ["ancillary_wind_direction", "ancillary_wind_speed", "ancillary_wind"]:
+            xr_dataset[var_name].attrs["source"] = xr_dataset["model_U10"].attrs["source"]
+            if "source_path" in xr_dataset["model_U10"].attrs:
+                xr_dataset[var_name].attrs["source_path"] = xr_dataset["model_U10"].attrs["source_path"]
     else:
         # Fallback to old attrs not present
         xr_dataset.attrs["ancillary_source"] = (
