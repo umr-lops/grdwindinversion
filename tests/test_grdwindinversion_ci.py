@@ -50,6 +50,9 @@ def test_makeL2_generation():
             resolution="1000m",
         )
 
+        assert ("ancillary_source_model" in dataset.attrs)
+        assert ("ancillary_source_path" in dataset.attrs)
+
         # Check if the output file (NetCDF) is generated
         assert os.path.exists(
             output_nc_file), f"NetCDF output file not created for {f}"

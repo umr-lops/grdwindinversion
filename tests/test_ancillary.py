@@ -16,7 +16,8 @@ class TestGetAncillary(unittest.TestCase):
         self.mock_meta = Mock()
         self.mock_meta.start_date = "2023-01-01 12:00:00.123456"
         # Initialize with proper columns for rasters DataFrame
-        self.mock_meta.rasters = pd.DataFrame(columns=['get_function', 'resource'])
+        self.mock_meta.rasters = pd.DataFrame(
+            columns=['get_function', 'resource'])
 
     @patch('grdwindinversion.inversion.getConf')
     def test_single_ecmwf_0100_1h_model(self, mock_get_conf):
@@ -45,7 +46,8 @@ class TestGetAncillary(unittest.TestCase):
         self.mock_meta.rasters.drop = Mock(return_value=self.mock_meta.rasters)
 
         try:
-            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='ecmwf')
+            map_model, metadata = getAncillary(
+                self.mock_meta, ancillary_name='ecmwf')
             # Should not raise error
             assert True
         except (KeyError, ValueError) as e:
@@ -78,7 +80,8 @@ class TestGetAncillary(unittest.TestCase):
         self.mock_meta.rasters.drop = Mock(return_value=self.mock_meta.rasters)
 
         try:
-            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='ecmwf')
+            map_model, metadata = getAncillary(
+                self.mock_meta, ancillary_name='ecmwf')
             # Should not raise error
             assert True
         except (KeyError, ValueError) as e:
@@ -123,7 +126,8 @@ class TestGetAncillary(unittest.TestCase):
             self.mock_meta.set_raster = mock_set_raster
 
             # Call the function
-            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='ecmwf')
+            map_model, metadata = getAncillary(
+                self.mock_meta, ancillary_name='ecmwf')
 
             # Verify that ecmwf_0100_1h is selected (not ecmwf_0125_1h)
             assert map_model is not None, "map_model should not be None"
@@ -134,8 +138,8 @@ class TestGetAncillary(unittest.TestCase):
 
             # Verify metadata
             assert metadata is not None, "metadata should not be None"
-            assert metadata['source'] == 'ecmwf_0100_1h'
-            assert 'source_path' in metadata
+            assert metadata['ancillary_source_model'] == 'ecmwf_0100_1h'
+            assert 'ancillary_source_path' in metadata
 
         finally:
             # Clean up temporary files
@@ -143,7 +147,6 @@ class TestGetAncillary(unittest.TestCase):
                 os.remove(file_0100)
             if os.path.exists(file_0125):
                 os.remove(file_0125)
-
 
     @patch('grdwindinversion.inversion.getConf')
     def test_era5_model(self, mock_get_conf):
@@ -174,7 +177,8 @@ class TestGetAncillary(unittest.TestCase):
             self.mock_meta.set_raster = mock_set_raster
 
             # Call the function
-            map_model, metadata = getAncillary(self.mock_meta, ancillary_name='era5')
+            map_model, metadata = getAncillary(
+                self.mock_meta, ancillary_name='era5')
 
             # Verify ERA5 is selected
             assert map_model is not None, "map_model should not be None"
@@ -185,8 +189,8 @@ class TestGetAncillary(unittest.TestCase):
 
             # Verify metadata
             assert metadata is not None, "metadata should not be None"
-            assert metadata['source'] == 'era5_0250_1h'
-            assert 'source_path' in metadata
+            assert metadata['ancillary_source_model'] == 'era5_0250_1h'
+            assert 'ancillary_source_path' in metadata
 
         finally:
             # Clean up temporary file

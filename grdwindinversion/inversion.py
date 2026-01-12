@@ -458,7 +458,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         if os.path.isfile(model_file):
             # File exists! This is our selection
             selected_name = model_name
-            selected_path = model_path
+            selected_path = model_file
             map_model = {
                 "%s_%s" % (selected_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
             }
@@ -481,8 +481,8 @@ def getAncillary(meta, ancillary_name="ecmwf"):
     ancillary_metadata = None
     if selected_name is not None:
         ancillary_metadata = {
-            'source': selected_name,
-            'source_path': selected_path
+            'ancillary_source_model': selected_name,
+            'ancillary_source_path': selected_path
         }
 
     return map_model, ancillary_metadata
@@ -1091,6 +1091,9 @@ def preprocess(
         raise Exception(
             f"the weather model is not set `map_model` is None -> you probably don't have access to {ancillary_name} archive"
         )
+    if ancillary_metadata is None:
+        raise Exception(
+            f"ancillary_metadata must be defined. There is an error in getAncillary function")
 
     try:
         logging.info(f"recalibration = {recalibration}")
@@ -1129,13 +1132,6 @@ def preprocess(
 
         xr_dataset = xr_dataset.rename(map_model)
         xr_dataset.attrs = xsar_dataset.dataset.attrs
-
-        # Add ancillary metadata to model variables
-        if ancillary_metadata is not None:
-            for var_name in ['model_U10', 'model_V10']:
-                if var_name in xr_dataset:
-                    for attr_key, attr_value in ancillary_metadata.items():
-                        xr_dataset[var_name].attrs[attr_key] = attr_value
 
     except Exception as e:
         logging.info("%s", traceback.format_exc())
@@ -1356,23 +1352,14 @@ def preprocess(
     xr_dataset["ancillary_wind"].attrs[
         "description"] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
 
-    # Store ancillary source in dataset and ancillary variables attributes
-    if "source" in xr_dataset["model_U10"].attrs:
-        xr_dataset.attrs["ancillary_source"] = xr_dataset["model_U10"].attrs["source"]
-        if "source_path" in xr_dataset["model_U10"].attrs:
-            xr_dataset.attrs["ancillary_source_path"] = xr_dataset["model_U10"].attrs["source_path"]
+    # Add ancillary metadata to model variables
 
-        # Copy metadata to ancillary variables
-        for var_name in ["ancillary_wind_direction", "ancillary_wind_speed", "ancillary_wind"]:
-            xr_dataset[var_name].attrs["source"] = xr_dataset["model_U10"].attrs["source"]
-            if "source_path" in xr_dataset["model_U10"].attrs:
-                xr_dataset[var_name].attrs["source_path"] = xr_dataset["model_U10"].attrs["source_path"]
-    else:
-        # Fallback to old attrs not present
-        xr_dataset.attrs["ancillary_source"] = (
-            xr_dataset["model_U10"].attrs["history"].split("decoded: ")[
-                1].strip()
-        )
+    for attr_key, attr_value in ancillary_metadata.items():
+        for var_name in ['model_U10', 'model_V10', 'ancillary_wind_speed', 'ancillary_wind_direction', 'ancillary_wind']:
+            if var_name in xr_dataset:
+                xr_dataset[var_name].attrs[attr_key] = attr_value
+
+        xr_dataset.attrs[attr_key] = attr_value
 
     # nrcs processing
     # Keep ocean (0) and coastal (1) zones, mask out land (2) and ice (3)
@@ -1890,7 +1877,8 @@ def makeL2(
         "wnf_3km_average": "False",
         "owiWindSpeedSrc": "owiWindSpeed",
         "owiWindDirectionSrc": "/",
-        "ancillary_source": xr_dataset.attrs["ancillary_source"],
+        "ancillary_source_model": xr_dataset.attrs["ancillary_source_model"],
+        "ancillary_source_path": xr_dataset.attrs["ancillary_source_path"],
         "winddir_convention": config["winddir_convention"],
         "incidence_within_lut_copol_incidence_range": str(inc_check_co),
         "incidence_within_lut_crosspol_incidence_range": str(inc_check_cross),
