@@ -35,6 +35,7 @@ API Reference
    configuration
    examples/wind-inversion-from-grd
    examples/streaks-display
+   algorithm
    modules
    contributing
    authors
