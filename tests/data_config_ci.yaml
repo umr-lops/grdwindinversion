@@ -4,8 +4,8 @@ unit_test_rs2_product: "./test_data/L1/RS2_OK141302_PK1242223_DK1208537_SCWA_202
 
 masks:
     land:
-        - name: "gshhs"
-          path: "./test_data/masks/gshhg-shp-2.3.7-h/GSHHS_shp/h/gshhs_h_L1.shp"
+        - name: "gshhg"
+          path: "./test_data/masks/gshhg-shp-2.3.7-h/GSHHS_shp/h/GSHHS_h_L1.shp"
 
 ancillary_sources:
     ecmwf:
