@@ -929,7 +929,7 @@ def makeL2asOwi(xr_dataset, config):
             "sigma0_ocean_raw",
             "sigma0_raw",
             "ancillary_wind",
-            "nesz"
+            "nesz",
             "model_U10",
             "model_V10"
 
@@ -1353,7 +1353,8 @@ def preprocess(
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
     xr_dataset["ancillary_wind"].attrs = {}
     xr_dataset["ancillary_wind"].attrs["long_name"] = f"{ancillary_name} wind in complex form for inversion"
-    xr_dataset["ancillary_wind"].attrs["description"] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
+    xr_dataset["ancillary_wind"].attrs[
+        "description"] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
 
     # Store ancillary source in dataset and ancillary variables attributes
     if "source" in xr_dataset["model_U10"].attrs:
