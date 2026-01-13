@@ -53,8 +53,8 @@ jobs:
               id: cache
               with:
                   path: ./test_data
-                  key: test-data-v4
-                  restore-keys: test-data-v4
+                  key: test-data-v6
+                  restore-keys: test-data-v6
 
               # Download test data if not already cached
             - name: Download test data
@@ -67,6 +67,8 @@ jobs:
                   unzip /tmp/l1.zip -d ./test_data/
                   wget https://cloud.ifremer.fr/index.php/s/RgloaQ8gi8svYOe/download -O /tmp/auxiliary.zip
                   unzip /tmp/auxiliary.zip -d ./test_data/
+                  wget https://cloud.ifremer.fr/index.php/s/oEUYYFqpYXELr7U/download -O /tmp/masks.zip
+                  unzip /tmp/masks.zip -d ./test_data/
               timeout-minutes: 200 # Adjust depending on the size of your data
 
               # Set up xsar configuration
@@ -81,15 +83,7 @@ jobs:
             - name: Setup grdwindinversion configuration
               run: |
                   mkdir -p ~/.grdwindinversion
-                  echo "'ecmwf_0100_1h': ./test_data/ECMWF/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc" > ~/.grdwindinversion/data_config.yaml
-                  echo "'ecmwf_0125_1h': ./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc" >> ~/.grdwindinversion/data_config.yaml
-                  echo "unit_test_s1_product: './test_data/L1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE'" >> ~/.grdwindinversion/data_config.yaml
-                  echo "unit_test_rcm_product: './test_data/L1/RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD'" >> ~/.grdwindinversion/data_config.yaml
-                  echo "unit_test_rs2_product: './test_data/L1/RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF'" >> ~/.grdwindinversion/data_config.yaml
-
-                  #echo "'nc_luts_path': ./test_data/GMFS/nc_luts" >> ~/.grdwindinversion/data_config.yaml
-                  #echo "'lut_cmod7_path': './test_data/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script'" >> ~/.grdwindinversion/data_config.yaml
-                  #echo "'lut_ms1ahw_path': './test_data/GMFS/v1.6/GMF_cmodms1ahw'" >> ~/.grdwindinversion/data_config.yaml
+                  cp tests/data_config_ci.yaml ~/.grdwindinversion/data_config.yaml
 
               # Run the tests
             - name: Run tests
