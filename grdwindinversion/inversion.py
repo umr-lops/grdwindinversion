@@ -465,7 +465,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
             # Log selection
             if len(ancillary_sources) > 1:
                 logging.info(
-                    f"Multiple {ancillary_name} models configured. Using {selected_name} (priority order)")
+                    f"Multiple {ancillary_name} models configured. Using {selected_name} (with respect to priority order)")
             else:
                 logging.info(
                     f"Only one {ancillary_name} model configured: using {selected_name}")
@@ -1751,7 +1751,8 @@ def makeL2(
         if dual_pol and alpha is not None:
             xr_dataset["alpha"] = xr.DataArray(
                 data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
-            xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
+            xr_dataset["alpha"].attrs["apply_flattening"] = str(
+                apply_flattening)
             xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
 
     else:
