@@ -1726,10 +1726,13 @@ def makeL2(
         logging.info(
             "dsig_cr_step is wspd : polarization are mixed at winds speed step")
 
-        if apply_flattening:
-            nesz_cross = xr_dataset["nesz_cross_flattened"]
+        if dual_pol:
+            if apply_flattening:
+                nesz_cross = xr_dataset["nesz_cross_flattened"]
+            else:
+                nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
         else:
-            nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
+            nesz_cross = None
 
         wind_co, wind_dual, windspeed_cr, alpha = inverse_dsig_wspd(
             dual_pol,
@@ -1743,10 +1746,11 @@ def makeL2(
             model_cross=model_cross,
             **kwargs
         )
-        xr_dataset["alpha"] = xr.DataArray(
-            data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
-        xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
-        xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
+        if dual_pol and alpha is not None:
+            xr_dataset["alpha"] = xr.DataArray(
+                data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
+            xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
+            xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
 
     else:
         raise ValueError(
