@@ -1709,8 +1709,9 @@ def makeL2(
         config["return_status"] = 99
 
     if dsig_cr_step == "nrcs":
-        logging.info(
-            "dsig_cr_step is nrcs : polarization are mixed at cost function step")
+        if dual_pol:
+            logging.info(
+                "dsig_cr_step is nrcs : polarization are mixed at cost function step")
         wind_co, wind_dual, windspeed_cr = inverse(
             dual_pol,
             inc=xr_dataset["incidence"],
@@ -1723,8 +1724,9 @@ def makeL2(
             **kwargs,
         )
     elif dsig_cr_step == "wspd":
-        logging.info(
-            "dsig_cr_step is wspd : polarization are mixed at winds speed step")
+        if dual_pol:
+            logging.info(
+                "dsig_cr_step is wspd : polarization are mixed at winds speed step")
 
         if dual_pol:
             if apply_flattening:
