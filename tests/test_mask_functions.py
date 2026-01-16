@@ -53,10 +53,9 @@ class TestMergeLandMasks:
 class TestAddMasksToMeta:
     """Core tests for addMasks_toMeta function"""
 
-    @patch('grdwindinversion.inversion.getConf')
-    def test_add_single_land_mask(self, mock_get_config):
+    def test_add_single_land_mask(self):
         """Test the main use case: adding one mask"""
-        mock_get_config.return_value = {
+        conf = {
             'masks': {
                 'land': [
                     {'name': 'gshhsH', 'path': '/path/to/mask.shp'}
@@ -65,7 +64,7 @@ class TestAddMasksToMeta:
         }
         mock_meta = Mock()
 
-        result = addMasks_toMeta(mock_meta)
+        result = addMasks_toMeta(mock_meta, conf)
 
         assert result == {'land': ['gshhsH']}
         mock_meta.set_mask_feature.assert_called_once_with(
@@ -74,14 +73,14 @@ class TestAddMasksToMeta:
     def test_add_mask_without_set_mask_feature_method(self):
         """Test validation: meta must have set_mask_feature method"""
         mock_meta = Mock(spec=[])
+        conf = {}
 
         with pytest.raises(AttributeError, match="must have a 'set_mask_feature' method"):
-            addMasks_toMeta(mock_meta)
+            addMasks_toMeta(mock_meta, conf)
 
-    @patch('grdwindinversion.inversion.getConf')
-    def test_add_mask_with_file_error(self, mock_get_config):
+    def test_add_mask_with_file_error(self):
         """Test resilience: file errors are caught without crashing"""
-        mock_get_config.return_value = {
+        conf = {
             'masks': {
                 'land': [
                     {'name': 'bad_mask', 'path': '/nonexistent.shp'}
@@ -92,7 +91,7 @@ class TestAddMasksToMeta:
         mock_meta.set_mask_feature.side_effect = FileNotFoundError(
             "File not found")
 
-        result = addMasks_toMeta(mock_meta)
+        result = addMasks_toMeta(mock_meta, conf)
 
         # Should not crash, just skip the failed mask
         assert result == {'land': []}

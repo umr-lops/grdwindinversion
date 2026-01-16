@@ -1,7 +1,7 @@
 import unittest
 import yaml
 import os
-from grdwindinversion.load_config import getConf
+import grdwindinversion
 
 
 class TestConfigStructure(unittest.TestCase):
@@ -9,7 +9,13 @@ class TestConfigStructure(unittest.TestCase):
 
     def setUp(self):
         """Load configuration for testing."""
-        self.config = getConf()
+        # Load config_prod_v3.yaml as an example of the complete config format
+        config_path = os.path.join(
+            os.path.dirname(grdwindinversion.__file__),
+            "config_prod_v3.yaml"
+        )
+        with open(config_path, 'r') as f:
+            self.config = yaml.safe_load(f)
 
     def test_ancillary_sources_exists(self):
         """Test that ancillary_sources exists in configuration (mandatory)."""
@@ -82,29 +88,27 @@ class TestConfigStructure(unittest.TestCase):
                     self.assertIsInstance(source['path'], str,
                                           f"Mask source path in '{category}' must be a string")
 
-    def test_default_config_file_exists(self):
-        """Test that the default data_config.yaml file exists in the package."""
-        import grdwindinversion
+    def test_config_prod_v3_file_exists(self):
+        """Test that the config_prod_v3.yaml example file exists in the package."""
         config_path = os.path.join(
             os.path.dirname(grdwindinversion.__file__),
-            'data_config.yaml'
+            'config_prod_v3.yaml'
         )
         self.assertTrue(os.path.exists(config_path),
-                        f"Default config file should exist at {config_path}")
+                        f"Example config file should exist at {config_path}")
 
-    def test_default_config_valid_yaml(self):
-        """Test that the default config file is valid YAML."""
-        import grdwindinversion
+    def test_config_prod_v3_valid_yaml(self):
+        """Test that the config_prod_v3.yaml file is valid YAML."""
         config_path = os.path.join(
             os.path.dirname(grdwindinversion.__file__),
-            'data_config.yaml'
+            'config_prod_v3.yaml'
         )
 
         with open(config_path, 'r') as f:
             try:
                 yaml.safe_load(f)
             except yaml.YAMLError as e:
-                self.fail(f"Default config file is not valid YAML: {e}")
+                self.fail(f"Config file is not valid YAML: {e}")
 
 
 if __name__ == '__main__':

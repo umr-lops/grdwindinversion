@@ -13,11 +13,11 @@ To use grdwindinversion in a project::
 Configuration Setup
 -------------------
 
-To define the path where the ECMWF files used for wind inversion (or any supported ancillary wind)::
+To define paths for ECMWF files and other data sources, create or copy a configuration file::
 
-    cp ./grdwindinversion/data_config.yaml ./grdwindinversion/local_data_config.yaml
-    # Then edit the file
-    vi ./grdwindinversion/local_data_config.yaml
+    cp ./grdwindinversion/config_prod_v3.yaml ./my_config.yaml
+    # Then edit the file to match your local paths
+    vi ./my_config.yaml
 
 See :doc:`configuration` for detailed configuration options.
 
