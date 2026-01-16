@@ -20,7 +20,6 @@ def processor_starting_point():
 
     from grdwindinversion.inversion import makeL2
     from grdwindinversion.utils_memory import get_memory_usage
-    from grdwindinversion.load_config import config_path
     import grdwindinversion
 
     parser = argparse.ArgumentParser(
@@ -67,8 +66,6 @@ def processor_starting_point():
             level=logging.INFO, format=fmt, datefmt="%d/%m/%Y %H:%M:%S", force=True
         )
     t0 = time.time()
-
-    logging.info("config path: %s", config_path)
 
     input_file = args.input_file.rstrip("/")
     logging.info("input file: %s", input_file)

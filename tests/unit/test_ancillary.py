@@ -1,6 +1,6 @@
 import pytest
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 import pandas as pd
 import tempfile
 import os
@@ -19,13 +19,12 @@ class TestGetAncillary(unittest.TestCase):
         self.mock_meta.rasters = pd.DataFrame(
             columns=['get_function', 'resource'])
 
-    @patch('grdwindinversion.inversion.getConf')
-    def test_single_ecmwf_0100_1h_model(self, mock_get_conf):
+    def test_single_ecmwf_0100_1h_model(self):
         """
         When only ecmwf_0100_1h is configured,
         function should work without requiring ecmwf_0125_1h
         """
-        mock_get_conf.return_value = {
+        conf = {
             'ancillary_sources': {
                 'ecmwf': [
                     {'name': 'ecmwf_0100_1h', 'path': '/path/to/ecmwf_0100'}
@@ -47,19 +46,18 @@ class TestGetAncillary(unittest.TestCase):
 
         try:
             map_model, metadata = getAncillary(
-                self.mock_meta, ancillary_name='ecmwf')
+                self.mock_meta, ancillary_name='ecmwf', conf=conf)
             # Should not raise error
             assert True
         except (KeyError, ValueError) as e:
             pytest.fail(f"Should handle single model, but raised error: {e}")
 
-    @patch('grdwindinversion.inversion.getConf')
-    def test_single_ecmwf_0125_1h_model(self, mock_get_conf):
+    def test_single_ecmwf_0125_1h_model(self):
         """
         When only ecmwf_0125_1h is configured,
         function should work without requiring ecmwf_0100_1h
         """
-        mock_get_conf.return_value = {
+        conf = {
             'ancillary_sources': {
                 'ecmwf': [
                     {'name': 'ecmwf_0125_1h', 'path': '/path/to/ecmwf_0125'}
@@ -81,14 +79,13 @@ class TestGetAncillary(unittest.TestCase):
 
         try:
             map_model, metadata = getAncillary(
-                self.mock_meta, ancillary_name='ecmwf')
+                self.mock_meta, ancillary_name='ecmwf', conf=conf)
             # Should not raise error
             assert True
         except (KeyError, ValueError) as e:
             pytest.fail(f"Should handle single model, but raised error: {e}")
 
-    @patch('grdwindinversion.inversion.getConf')
-    def test_both_models_priority_ecmwf_0100_1h(self, mock_get_conf):
+    def test_both_models_priority_ecmwf_0100_1h(self):
         """
         When both models are configured and both files exist on disk,
         ecmwf_0100_1h should be selected (more recent and precise)
@@ -101,7 +98,7 @@ class TestGetAncillary(unittest.TestCase):
 
         try:
             # Configure both models
-            mock_get_conf.return_value = {
+            conf = {
                 'ancillary_sources': {
                     'ecmwf': [
                         {'name': 'ecmwf_0100_1h', 'path': '/path/to/ecmwf_0100'},
@@ -127,7 +124,7 @@ class TestGetAncillary(unittest.TestCase):
 
             # Call the function
             map_model, metadata = getAncillary(
-                self.mock_meta, ancillary_name='ecmwf')
+                self.mock_meta, ancillary_name='ecmwf', conf=conf)
 
             # Verify that ecmwf_0100_1h is selected (not ecmwf_0125_1h)
             assert map_model is not None, "map_model should not be None"
@@ -148,13 +145,12 @@ class TestGetAncillary(unittest.TestCase):
             if os.path.exists(file_0125):
                 os.remove(file_0125)
 
-    @patch('grdwindinversion.inversion.getConf')
-    def test_era5_model(self, mock_get_conf):
+    def test_era5_model(self):
         """
         When era5_0250_1h is configured,
         function should work correctly
         """
-        mock_get_conf.return_value = {
+        conf = {
             'ancillary_sources': {
                 'era5': [
                     {'name': 'era5_0250_1h', 'path': '/path/to/era5_0250'}
@@ -178,7 +174,7 @@ class TestGetAncillary(unittest.TestCase):
 
             # Call the function
             map_model, metadata = getAncillary(
-                self.mock_meta, ancillary_name='era5')
+                self.mock_meta, ancillary_name='era5', conf=conf)
 
             # Verify ERA5 is selected
             assert map_model is not None, "map_model should not be None"

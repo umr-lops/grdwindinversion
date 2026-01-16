@@ -8,41 +8,10 @@ Configuration Files Implementation Guide
 Overview
 --------
 
-The ``grdwindinversion`` configuration system uses two types of YAML files:
+The ``grdwindinversion`` configuration system uses a **single YAML configuration file** that contains both data source paths and processing parameters.
 
-1. **data_config.yaml**: Paths to data sources (ancillary, , LUTs, masks)
-2. **config_*.yaml**: Processing parameters specific to each satellite
-
-Configuration System Architecture
-----------------------------------
-
-Loading Hierarchy
-~~~~~~~~~~~~~~~~~
-
-The ``data_config.yaml`` file is loaded with the following priority:
-
-.. code-block:: text
-
-    1. ~/.grdwindinversion/data_config.yaml  (user local configuration)
-    2. ./local_data_config.yaml              (project local configuration)
-    3. <package>/data_config.yaml            (package default configuration)
-
-Accessing Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-    from grdwindinversion.load_config import getConf
-
-    # Get the global configuration dictionary
-    config = getConf()
-
-    # Access data paths
-    ecmwf_path = config["ecmwf_0100_1h"]
-    nc_luts_path = config["nc_luts_path"]
-
-data_config.yaml Structure
----------------------------
+Configuration File Structure
+-----------------------------
 
 1. Meteorological Data Paths (ancillary)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
