@@ -15,14 +15,6 @@ Wind Inversion
     :members: inverse, makeL2, makeL2asOwi, getSensorMetaDataset, getOutputName, inverse_dsig_wspd, addMasks_toMeta, mergeLandMasks, processLandMask, getAncillary, preprocess, process_gradients, transform_winddir
     :show-inheritance:
 
-Configuration Management
-------------------------
-
-.. automodule:: grdwindinversion.load_config
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 Gradient Features
 -----------------
 

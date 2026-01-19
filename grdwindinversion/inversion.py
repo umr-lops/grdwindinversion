@@ -15,10 +15,9 @@ from scipy.ndimage import binary_dilation
 import re
 import os
 import logging
-import string
+
 
 from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
-from grdwindinversion.load_config import getConf
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -170,7 +169,7 @@ def getOutputName(
     return out_file
 
 
-def addMasks_toMeta(meta: xsar.BaseMeta) -> dict:
+def addMasks_toMeta(meta: xsar.BaseMeta, conf: dict) -> dict:
     """
     Add high-resolution masks (land, ice, lakes, etc.) from shapefiles to meta object.
 
@@ -192,6 +191,8 @@ def addMasks_toMeta(meta: xsar.BaseMeta) -> dict:
     ----------
     meta : xsar.BaseMeta
         Metadata object to add mask features to. Must have a set_mask_feature method.
+    conf : dict
+        Configuration dictionary containing masks definition
 
     Returns
     -------
@@ -210,7 +211,6 @@ def addMasks_toMeta(meta: xsar.BaseMeta) -> dict:
         raise AttributeError(
             f"Meta object of type {type(meta).__name__} must have a 'set_mask_feature' method")
 
-    conf = getConf()
     masks_by_category = {}
 
     # Check for 'masks' key
@@ -395,7 +395,7 @@ def processLandMask(xr_dataset, dilation_iterations=3, merged_masks=None):
         xr_dataset.land_mask.attrs["history"] = new_history
 
 
-def getAncillary(meta, ancillary_name="ecmwf"):
+def getAncillary(meta, ancillary_name, conf):
     """
     Map ancillary wind from "ecmwf" or "era5" or other sources.
     This function is used to check if the model files are available and to map the model to the SAR data.
@@ -406,6 +406,8 @@ def getAncillary(meta, ancillary_name="ecmwf"):
     meta: obj `xsar.BaseMeta` (one of the supported SAR mission)
     ancillary_name: str
         Name of the ancillary source (ecmwf or era5)
+    conf: dict
+        Configuration dictionary containing ancillary_sources
 
     Returns
     -------
@@ -414,8 +416,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
         - map_model (dict): mapping of model variables to SAR data
         - metadata (dict): ancillary metadata with 'source' and 'source_path' keys
     """
-    logging.debug("conf: %s", getConf())
-    conf = getConf()
+    logging.debug("conf: %s", conf)
     if 'ancillary_sources' not in conf:
         raise ValueError("Configuration must contain 'ancillary_sources'")
 
@@ -465,7 +466,7 @@ def getAncillary(meta, ancillary_name="ecmwf"):
             # Log selection
             if len(ancillary_sources) > 1:
                 logging.info(
-                    f"Multiple {ancillary_name} models configured. Using {selected_name} (priority order)")
+                    f"Multiple {ancillary_name} models configured. Using {selected_name} (with respect to priority order)")
             else:
                 logging.info(
                     f"Only one {ancillary_name} model configured: using {selected_name}")
@@ -1002,6 +1003,11 @@ def preprocess(
     if os.path.exists(config_path):
         with open(config_path, "r") as file:
             config_base = yaml.load(file, Loader=yaml.FullLoader)
+
+        # Validate configuration structure
+        from grdwindinversion.utils import test_config
+        test_config(config_base)
+
         try:
             # check if sensor is in the config
             config = config_base[sensor]
@@ -1015,7 +1021,7 @@ def preprocess(
     meta = fct_meta(filename)
 
     # Add masks to meta if configured (land, ice, lakes, etc.)
-    masks_by_category = addMasks_toMeta(meta)
+    masks_by_category = addMasks_toMeta(meta, config_base)
 
     # si une des deux n'est pas VV VH HH HV on ne fait rien
     if not all([pol in ["VV", "VH", "HH", "HV"] for pol in meta.pols.split(" ")]):
@@ -1086,7 +1092,8 @@ def preprocess(
         raise FileExistsError("outfile %s already exists" % out_file)
 
     ancillary_name = config["ancillary"]
-    map_model, ancillary_metadata = getAncillary(meta, ancillary_name)
+    map_model, ancillary_metadata = getAncillary(
+        meta, ancillary_name, config_base)
     if map_model is None:
         raise Exception(
             f"the weather model is not set `map_model` is None -> you probably don't have access to {ancillary_name} archive"
@@ -1212,10 +1219,10 @@ def preprocess(
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
     if len(nc_luts) > 0:
-        windspeed.register_nc_luts(getConf()["nc_luts_path"])
+        windspeed.register_nc_luts(config_base["nc_luts_path"])
 
     if model_co == "gmf_cmod7":
-        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
+        windspeed.register_cmod7(config_base["lut_cmod7_path"])
     #  Step 2 - clean and prepare dataset
 
     # variables to not keep in the L2
@@ -1275,8 +1282,7 @@ def preprocess(
     xr_dataset.offboresight.attrs["standard_name"] = "offboresight"
 
     # merge land masks
-    conf = getConf()
-    land_mask_strategy = conf.get("LAND_MASK_STRATEGY", "merge")
+    land_mask_strategy = config_base.get("LAND_MASK_STRATEGY", "merge")
     logging.info(f"land_mask_strategy = {land_mask_strategy}")
 
     # Store masks_by_category in config for later cleanup
@@ -1292,11 +1298,10 @@ def preprocess(
     processLandMask(xr_dataset, dilation_iterations=3,
                     merged_masks=merged_land_masks)
 
-    logging.debug("mask is a copy of land_mask")
-
     # Create main mask from land_mask
     # For now, mask uses the same values as land_mask
     # Can be extended later to include ice (value 3) and other categories
+    logging.debug("mask is a copy of land_mask")
     xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask)
     xr_dataset.mask.attrs = {}
     xr_dataset.mask.attrs["long_name"] = "Mask of data"
@@ -1709,8 +1714,9 @@ def makeL2(
         config["return_status"] = 99
 
     if dsig_cr_step == "nrcs":
-        logging.info(
-            "dsig_cr_step is nrcs : polarization are mixed at cost function step")
+        if dual_pol:
+            logging.info(
+                "dsig_cr_step is nrcs : polarization are mixed at cost function step")
         wind_co, wind_dual, windspeed_cr = inverse(
             dual_pol,
             inc=xr_dataset["incidence"],
@@ -1723,13 +1729,17 @@ def makeL2(
             **kwargs,
         )
     elif dsig_cr_step == "wspd":
-        logging.info(
-            "dsig_cr_step is wspd : polarization are mixed at winds speed step")
+        if dual_pol:
+            logging.info(
+                "dsig_cr_step is wspd : polarization are mixed at winds speed step")
 
-        if apply_flattening:
-            nesz_cross = xr_dataset["nesz_cross_flattened"]
+        if dual_pol:
+            if apply_flattening:
+                nesz_cross = xr_dataset["nesz_cross_flattened"]
+            else:
+                nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
         else:
-            nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
+            nesz_cross = None
 
         wind_co, wind_dual, windspeed_cr, alpha = inverse_dsig_wspd(
             dual_pol,
@@ -1743,10 +1753,12 @@ def makeL2(
             model_cross=model_cross,
             **kwargs
         )
-        xr_dataset["alpha"] = xr.DataArray(
-            data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
-        xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
-        xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
+        if dual_pol and alpha is not None:
+            xr_dataset["alpha"] = xr.DataArray(
+                data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
+            xr_dataset["alpha"].attrs["apply_flattening"] = str(
+                apply_flattening)
+            xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
 
     else:
         raise ValueError(
