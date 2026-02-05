@@ -110,7 +110,7 @@ def get_pol_ratio_name(model_co):
             import re
 
             def check_format(s):
-                pattern = r"^([a-zA-Z0-9]+)_R(high|low)_hh_([a-zA-Z0-9_]+)$"
+                pattern = r"^([a-zA-Z0-9_]+)_R(high|low)_hh_([a-zA-Z0-9_]+)$"
                 match = re.match(pattern, s)
                 if match:
                     vvgmf, res, polrationame = match.groups()
@@ -250,10 +250,12 @@ def test_config(config):
 
     # Check which sensors are configured
     supported_sensors = ['S1A', 'S1B', 'S1C', 'S1D', 'RS2', 'RCM']
-    configured_sensors = [sensor for sensor in supported_sensors if sensor in config]
+    configured_sensors = [
+        sensor for sensor in supported_sensors if sensor in config]
     if configured_sensors:
         logger.info(f"Sensors configured: {', '.join(configured_sensors)}")
     else:
-        logger.warning("No sensors configured - at least one sensor (S1A, S1B, S1C, S1D, RS2, RCM) should be present")
+        logger.warning(
+            "No sensors configured - at least one sensor (S1A, S1B, S1C, S1D, RS2, RCM) should be present")
 
     logger.info("Configuration validation passed")
