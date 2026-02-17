@@ -1,8 +1,10 @@
 name: grdwindinversion-tests
 channels:
     - conda-forge
+
 dependencies:
     - python=3.10
+
     # development
     - ipython
     - pre-commit
@@ -11,23 +13,23 @@ dependencies:
     - isort
     - black
     - dask-labextension
+
     # testing
     - pytest
     - pytest-reportlog
     - hypothesis
     - coverage
+
     # I/O
     - rioxarray
     - h5netcdf
     - zarr
-    - scipy
+
     # data
-    - xarray
+    - dask <2025
+
     - xarray-datatree
-    - dask
-    - numpy
-    - pandas
-    - shapely
+
     # processing
     - more-itertools
     - tqdm

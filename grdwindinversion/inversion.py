@@ -13,12 +13,11 @@ import datetime
 import yaml
 from scipy.ndimage import binary_dilation
 import re
-import string
-from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
-from grdwindinversion.load_config import getConf
-import logging
 import os
+import logging
 
+
+from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -31,9 +30,22 @@ except:
 cv2.setNumThreads(1)
 
 
-# optional debug messages
-logger = logging.getLogger('grdwindinversion.inversion')
-logger.addHandler(logging.NullHandler())
+root_logger = logging.getLogger("grdwindinversion.inversion")
+
+# Sensor metadata registry
+SENSOR_METADATA = {
+    "S1A": ("S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "S1B": ("S1B", "SENTINEL-1 B", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "S1C": ("S1C", "SENTINEL-1 C", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "S1D": ("S1D", "SENTINEL-1 D", xsar.Sentinel1Meta, xsar.Sentinel1Dataset),
+    "RS2": ("RS2", "RADARSAT-2", xsar.RadarSat2Meta, xsar.RadarSat2Dataset),
+    "RCM1": ("RCM", "RADARSAT Constellation 1", xsar.RcmMeta, xsar.RcmDataset),
+    "RCM2": ("RCM", "RADARSAT Constellation 2", xsar.RcmMeta, xsar.RcmDataset),
+    "RCM3": ("RCM", "RADARSAT Constellation 3", xsar.RcmMeta, xsar.RcmDataset),
+}
+
+# Mask naming convention used by xsar
+XSAR_MASK_SUFFIX = "_mask"
 
 
 def getSensorMetaDataset(filename):
@@ -50,27 +62,14 @@ def getSensorMetaDataset(filename):
     tuple
         sensor name, sensor long name, meta function, dataset function
     """
-    if "S1A" in filename:
-        return "S1A", "SENTINEL-1 A", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "S1B" in filename:
-        return "S1B", "SENTINEL-1 B", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "S1C" in filename:
-        return "S1C", "SENTINEL-1 C", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "S1D" in filename:
-        return "S1D", "SENTINEL-1 D", xsar.Sentinel1Meta, xsar.Sentinel1Dataset
-    elif "RS2" in filename:
-        return "RS2", "RADARSAT-2", xsar.RadarSat2Meta, xsar.RadarSat2Dataset
-    elif "RCM1" in filename:
-        return "RCM", "RADARSAT Constellation 1", xsar.RcmMeta, xsar.RcmDataset
-    elif "RCM2" in filename:
-        return "RCM", "RADARSAT Constellation 2", xsar.RcmMeta, xsar.RcmDataset
-    elif "RCM3" in filename:
-        return "RCM", "RADARSAT Constellation 3", xsar.RcmMeta, xsar.RcmDataset
+    for sensor_key, sensor_info in SENSOR_METADATA.items():
+        if sensor_key in filename:
+            return sensor_info
 
-    else:
-        raise ValueError(
-            "must be S1A|S1B|S1C|S1D|RS2|RCM1|RCM2|RCM3, got filename %s" % filename
-        )
+    supported_sensors = "|".join(SENSOR_METADATA.keys())
+    raise ValueError(
+        f"must be {supported_sensors}, got filename {filename}"
+    )
 
 
 def getOutputName(
@@ -98,20 +97,16 @@ def getOutputName(
         output filename
     """
     basename = os.path.basename(input_file)
-    basename_match = basename
 
-    if sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D":
+    if sensor in ["S1A", "S1B", "S1C", "S1D"]:
+        # Example: S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE
         regex = re.compile(
-            "(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
+            r"(...)_(..)_(...)(.)_(.)(.)(..)_(........T......)_(........T......)_(......)_(......)_(....).SAFE"
         )
-        template = string.Template(
-            "${MISSIONID}_${SWATH}_${PRODUCT}${RESOLUTION}_${LEVEL}${CLASS}${POLARIZATION}_${STARTDATE}_${STOPDATE}_${ORBIT}_${TAKEID}_${PRODID}.SAFE"
-        )
-        # S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F
-        match = regex.match(basename_match)
+        match = regex.match(basename)
         if not match:
             raise AttributeError(
-                f"S1 file {basename_match} does not match the expected pattern"
+                f"S1 file {basename} does not match the expected pattern"
             )
 
         (
@@ -128,37 +123,33 @@ def getOutputName(
             TAKEID,
             PRODID,
         ) = match.groups()
-        # last two terms of polarization are removed
         new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{POLARIZATION.lower()}-{STARTDATE.lower()}-{STOPDATE.lower()}-{ORBIT}-{TAKEID}.nc"
+
     elif sensor == "RS2":
+        # Example: RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF
         regex = re.compile(
-            "(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)"
+            r"(RS2)_OK([0-9]+)_PK([0-9]+)_DK([0-9]+)_(....)_(........)_(......)_(.._?.?.?)_(S.F)"
         )
-        # RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF
-        template = string.Template(
-            "${MISSIONID}_OK${DATA1}_PK${DATA2}_DK${DATA3}_${SWATH}_${DATE}_${TIME}_${POLARIZATION}_${LAST}"
-        )
-        match = regex.match(basename_match)
+        match = regex.match(basename)
         if not match:
             raise AttributeError(
-                f"RC2 file {basename_match} does not match the expected pattern"
+                f"RS2 file {basename} does not match the expected pattern"
             )
 
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, LAST = (
             match.groups()
         )
         new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxxxx-xxxxx.nc"
-    elif sensor == "RCM":
 
+    elif sensor == "RCM":
+        # Example: RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
         regex = re.compile(
             r"(RCM[0-9])_OK([0-9]+)_PK([0-9]+)_([0-9]+)_([A-Z0-9]+)_(\d{8})_(\d{6})_([A-Z]{2}(?:_[A-Z]{2})?)_([A-Z]+)$"
         )
-        # RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD
-
-        match = regex.match(basename_match)
+        match = regex.match(basename)
         if not match:
             raise AttributeError(
-                f"RCM file {basename_match} does not match the expected pattern"
+                f"RCM file {basename} does not match the expected pattern"
             )
 
         MISSIONID, DATA1, DATA2, DATA3, SWATH, DATE, TIME, POLARIZATION, PRODUCT = (
@@ -168,7 +159,8 @@ def getOutputName(
 
     else:
         raise ValueError(
-            "sensor must be S1A|S1B|S1C|RS2|RCM, got sensor %s" % sensor)
+            f"sensor must be S1A|S1B|S1C|S1D|RS2|RCM, got sensor {sensor}"
+        )
 
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
@@ -177,115 +169,327 @@ def getOutputName(
     return out_file
 
 
-def getAncillary(meta, ancillary_name="ecmwf"):
+def addMasks_toMeta(meta: xsar.BaseMeta, conf: dict) -> dict:
     """
-    Map ancillary wind from ECMWF or ERA5.
-    This function is used to check if the model files are available and to map the model to the SAR data.
+    Add high-resolution masks (land, ice, lakes, etc.) from shapefiles to meta object.
+
+    Configuration format:
+      masks:
+        land:
+          - name: 'gshhsH'
+            path: '/path/to/mask.shp'
+          - name: 'custom_land'
+            path: '/path/to/custom.shp'
+        ice:
+          - name: 'ice_mask'
+            path: '/path/to/ice.shp'
+
+    Note: xsar will automatically add '_mask' suffix to the variable names in the dataset.
+    For example, 'gshhsH' becomes 'gshhsH_mask' in the xarray dataset.
 
     Parameters
     ----------
-    meta: obj `xsar.BaseMeta` (one of the supported SAR mission)
+    meta : xsar.BaseMeta
+        Metadata object to add mask features to. Must have a set_mask_feature method.
+    conf : dict
+        Configuration dictionary containing masks definition
 
     Returns
     -------
     dict
-        map model to SAR data
+        Dictionary with mask categories as keys and lists of mask names as values.
+        Names are returned WITHOUT the '_mask' suffix that xsar adds internally.
+        Example: {'land': ['gshhsH', 'custom_land'], 'ice': ['ice_mask']}
+
+    Raises
+    ------
+    AttributeError
+        If meta object doesn't have set_mask_feature method
     """
+    # Validate meta object has required method
+    if not hasattr(meta, 'set_mask_feature'):
+        raise AttributeError(
+            f"Meta object of type {type(meta).__name__} must have a 'set_mask_feature' method")
 
-    if ancillary_name == "ecmwf":
-        logging.debug("conf: %s", getConf())
-        ec01 = getConf()["ecmwf_0100_1h"]
-        ec0125 = getConf()["ecmwf_0125_1h"]
-        logging.debug("ec01 : %s", ec01)
-        meta.set_raster("ecmwf_0100_1h", ec01)
-        meta.set_raster("ecmwf_0125_1h", ec0125)
+    masks_by_category = {}
 
-        map_model = None
-        # only keep best ecmwf  (FIXME: it's hacky, and xsar should provide a better method to handle this)
-        for ecmwf_name in ["ecmwf_0125_1h", "ecmwf_0100_1h"]:
-            ecmwf_infos = meta.rasters.loc[ecmwf_name]
-            try:
-                ecmwf_file = ecmwf_infos["get_function"](
-                    ecmwf_infos["resource"],
-                    date=datetime.datetime.strptime(
-                        meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
-                    ),
-                )[1]
-            # temporary for RCM issue https://github.com/umr-lops/xarray-safe-rcm/issues/34
-            except Exception as e:
-                ecmwf_file = ecmwf_infos["get_function"](
-                    ecmwf_infos["resource"],
-                    date=datetime.datetime.strptime(
-                        meta.start_date, "%Y-%m-%d %H:%M:%S"
-                    ),
-                )[1]
-            if not os.path.isfile(ecmwf_file):
-                # temporary
-                # if repro does not exist we look at not repro folder (only one will exist after)
-                """
-                if ecmwf_name == "ecmwf_0100_1h":
-                    ecmwf_infos['resource'] = ecmwf_infos['resource'].replace(
-                        "netcdf_light_REPRO_tree", "netcdf_light")
-                    try:
-                        ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                                 date=datetime.datetime.strptime(meta.start_date,
-                                                                                                 '%Y-%m-%d %H:%M:%S.%f'))[1]
-                    except Exception as e:
-                        ecmwf_file = ecmwf_infos['get_function'](ecmwf_infos['resource'],
-                                                                 date=datetime.datetime.strptime(meta.start_date,
-                                                                                                 '%Y-%m-%d %H:%M:%S'))[1]
+    # Check for 'masks' key
+    if "masks" in conf and isinstance(conf["masks"], dict):
+        logging.debug("Found 'masks' configuration")
 
-                    if not os.path.isfile(ecmwf_file):
-                        meta.rasters = meta.rasters.drop([ecmwf_name])
+        for category, mask_list in conf["masks"].items():
+            if isinstance(mask_list, list):
+                masks_by_category[category] = []
+                for mask_item in mask_list:
+                    if isinstance(mask_item, dict) and "path" in mask_item and "name" in mask_item:
+                        mask_name = mask_item["name"]
+                        mask_path = mask_item["path"]
+                        try:
+                            logging.debug("%s path: %s", mask_name, mask_path)
+                            meta.set_mask_feature(mask_name, mask_path)
+                            logging.info(
+                                "Mask feature '%s' set from %s", mask_name, mask_path)
+                            masks_by_category[category].append(mask_name)
+                        except (IOError, OSError, FileNotFoundError) as e:
+                            logging.error(
+                                "Failed to load mask file '%s' from path '%s': %s",
+                                mask_name, mask_path, str(e))
+                            logging.debug("%s", traceback.format_exc())
+                        except (ValueError, RuntimeError) as e:
+                            logging.error(
+                                "Failed to process mask '%s': %s", mask_name, str(e))
+                            logging.debug("%s", traceback.format_exc())
                     else:
-                        map_model = {'%s_%s' % (ecmwf_name, uv): 'model_%s' % uv for uv in [
-                            'U10', 'V10']}
-
-                else:
-                """
-                meta.rasters = meta.rasters.drop([ecmwf_name])
+                        logging.warning(
+                            "Invalid mask configuration in category '%s': missing 'name' or 'path' field",
+                            category)
             else:
-                map_model = {
-                    "%s_%s" % (ecmwf_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
-                }
+                logging.warning(
+                    "Mask category '%s' should contain a list, got %s",
+                    category, type(mask_list).__name__
+                )
 
-        return map_model
+    return masks_by_category
 
-    elif ancillary_name == "era5":
-        era5_name = "era5_0250_1h"
-        logging.debug("conf: %s", getConf())
-        era0250 = getConf()[era5_name]
-        logging.debug("%s : %s", (era5_name, era0250))
-        meta.set_raster(era5_name, era0250)
 
-        era5_infos = meta.rasters.loc[era5_name]
-        try:
-            era5_file = era5_infos["get_function"](
-                era5_infos["resource"],
-                date=datetime.datetime.strptime(
-                    meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
-                ),
-            )[1]
-        except Exception as e:
-            era5_file = era5_infos["get_function"](
-                era5_infos["resource"],
-                date=datetime.datetime.strptime(
-                    meta.start_date, "%Y-%m-%d %H:%M:%S"),
-            )[1]
-        if not os.path.isfile(era5_file):
-            raise ValueError(f"era5 file {era5_file} not found")
+def mergeLandMasks(xr_dataset: xr.Dataset, land_mask_names: list) -> xr.Dataset:
+    """
+    Merge multiple land masks into the main land_mask variable.
 
-        map_model = {
-            "%s_%s" % (era5_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
-        }
-        return map_model
+    This function takes all individual land masks added via addMasks_toMeta() and combines
+    them using a logical OR operation to create a unified land mask that covers
+    all land areas from all sources.
 
-    else:
+    Parameters
+    ----------
+    xr_dataset : xr.Dataset
+        Dataset containing individual land mask variables. Must contain a 'land_mask' variable.
+    land_mask_names : list of str
+        Names of the land mask variables to merge (WITHOUT the '_mask' suffix).
+        For example: ['gshhsH', 'custom_land'].
+        These names will have XSAR_MASK_SUFFIX automatically appended to match
+        the variable names in the dataset.
+
+    Returns
+    -------
+    xr.Dataset
+        The input dataset with its land_mask variable updated by merging all specified masks.
+        Note: The dataset is modified in place AND returned for convenience.
+
+    Raises
+    ------
+    ValueError
+        If 'land_mask' variable is not present in the dataset
+    """
+    # Validate that land_mask exists in the dataset
+    if "land_mask" not in xr_dataset:
         raise ValueError(
-            "ancillary_name must be ecmwf/era5, got %s" % ancillary_name)
+            "Dataset must contain a 'land_mask' variable. "
+            f"Available variables: {list(xr_dataset.data_vars.keys())}")
+
+    if not land_mask_names:
+        logging.debug("No additional land masks to merge")
+        return xr_dataset
+
+    logging.info("Merging %d land masks: %s", len(
+        land_mask_names), land_mask_names)
+
+    # Start with the default land_mask from xsar
+    merged_mask = xr_dataset["land_mask"].values.astype("uint8")
+
+    # Merge all configured land masks
+    for mask_name in land_mask_names:
+        # xsar adds XSAR_MASK_SUFFIX to mask names in the dataset
+        dataset_mask_name = f"{mask_name}{XSAR_MASK_SUFFIX}"
+
+        if dataset_mask_name in xr_dataset:
+            logging.info("Merging mask '%s' into land_mask", dataset_mask_name)
+            mask_values = xr_dataset[dataset_mask_name].values.astype("uint8")
+            # Logical OR: any pixel marked as land (1) in any mask becomes land
+            merged_mask = np.maximum(merged_mask, mask_values)
+        else:
+            logging.warning(
+                "Mask '%s' not found in dataset, skipping", dataset_mask_name)
+
+    # Update the main land_mask
+    xr_dataset.land_mask.values = merged_mask
+    logging.info("Land masks merged")
+
+    return xr_dataset
 
 
-@timing(logger=logger.debug)
+def processLandMask(xr_dataset, dilation_iterations=3, merged_masks=None):
+    """
+    Process land mask to create a 3-level mask system with coastal zone detection.
+
+    This function:
+    1. Takes the original land_mask (merged from all configured sources)
+    2. Applies binary dilation to detect coastal zones
+    3. Creates a 3-level land_mask:
+       - 0 = ocean (water far from coast)
+       - 1 = coastal (zone between original mask and dilated mask)
+       - 2 = land (original land mask)
+
+    Parameters
+    ----------
+    xr_dataset : xarray.Dataset
+        Dataset containing the land_mask variable
+    dilation_iterations : int, optional
+        Number of dilation iterations to define coastal zone width (default: 3)
+    merged_masks : list of str, optional
+        Names of masks that were merged into land_mask (for history tracking)
+
+    Returns
+    -------
+    None
+        Modifies xr_dataset.land_mask in place
+    """
+    logging.info("Processing land mask and adding a coastal zone")
+
+    # Store original land mask (2 = land)
+    original_land_mask = xr_dataset["land_mask"].values.astype("uint8")
+
+    # Apply dilation to create coastal zone
+    dilated_mask = binary_dilation(
+        original_land_mask,
+        structure=np.ones((3, 3), np.uint8),
+        iterations=dilation_iterations,
+    )
+
+    # Create 3-level mask
+    # Start with all zeros (ocean)
+    three_level_mask = np.zeros_like(original_land_mask, dtype="uint8")
+
+    # Mark land areas (2)
+    three_level_mask[original_land_mask == 1] = 2
+
+    # Mark coastal areas (1) - dilated area minus original land
+    coastal_zone = (dilated_mask == 1) & (original_land_mask == 0)
+    three_level_mask[coastal_zone] = 1
+
+    # Update the land_mask with 3-level system
+    xr_dataset.land_mask.values = three_level_mask
+
+    # Update attributes
+    xr_dataset.land_mask.attrs["long_name"] = "Land mask with coastal zone"
+    xr_dataset.land_mask.attrs["valid_range"] = np.array([0, 2])
+    xr_dataset.land_mask.attrs["flag_values"] = np.array([0, 1, 2])
+    xr_dataset.land_mask.attrs["flag_meanings"] = "ocean coastal land"
+    xr_dataset.land_mask.attrs["meaning"] = "0: ocean, 1: coastal, 2: land"
+
+    # Append to history instead of replacing
+    existing_history = xr_dataset.land_mask.attrs.get("history", "")
+
+    # Build history message
+    if merged_masks:
+        merge_info = f"merged with {', '.join(merged_masks)}"
+    else:
+        merge_info = ""
+
+    new_history = f"{merge_info}3-level land mask with coastal zone detection via binary dilation"
+
+    if existing_history:
+        xr_dataset.land_mask.attrs["history"] = existing_history + \
+            "; " + new_history
+    else:
+        xr_dataset.land_mask.attrs["history"] = new_history
+
+
+def getAncillary(meta, ancillary_name, conf):
+    """
+    Map ancillary wind from "ecmwf" or "era5" or other sources.
+    This function is used to check if the model files are available and to map the model to the SAR data.
+    This function will use with priority the first model of the config file.
+
+    Parameters
+    ----------
+    meta: obj `xsar.BaseMeta` (one of the supported SAR mission)
+    ancillary_name: str
+        Name of the ancillary source (ecmwf or era5)
+    conf: dict
+        Configuration dictionary containing ancillary_sources
+
+    Returns
+    -------
+    tuple
+        (map_model, metadata) where:
+        - map_model (dict): mapping of model variables to SAR data
+        - metadata (dict): ancillary metadata with 'source' and 'source_path' keys
+    """
+    logging.debug("conf: %s", conf)
+    if 'ancillary_sources' not in conf:
+        raise ValueError("Configuration must contain 'ancillary_sources'")
+
+    if ancillary_name not in conf['ancillary_sources']:
+        raise ValueError(
+            f"Configuration 'ancillary_sources' must contain '{ancillary_name}'")
+
+    if ancillary_name not in ["ecmwf", "era5"]:
+        logging.warning("We advice to use either ecmwf or era5.")
+
+    ancillary_sources = conf['ancillary_sources'][ancillary_name]
+    if not ancillary_sources:
+        raise ValueError(
+            f"At least one ancillary model {ancillary_name} must be configured in ancillary_sources")
+
+    map_model = None
+    selected_name = None
+    selected_path = None
+    tried_names = []
+
+    # Loop through models in config order to find the first one that exists
+    for source in ancillary_sources:
+        model_name = source['name']
+        model_path = source['path']
+        logging.debug("%s : %s", model_name, model_path)
+
+        # Set raster to check if file exists
+        meta.set_raster(model_name, model_path)
+        tried_names.append(model_name)
+
+        model_info = meta.rasters.loc[model_name]
+
+        model_file = model_info["get_function"](
+            model_info["resource"],
+            date=datetime.datetime.strptime(
+                meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
+            ),
+        )[1]
+
+        if os.path.isfile(model_file):
+            # File exists! This is our selection
+            selected_name = model_name
+            selected_path = model_file
+            map_model = {
+                "%s_%s" % (selected_name, uv): "model_%s" % uv for uv in ["U10", "V10"]
+            }
+            # Log selection
+            if len(ancillary_sources) > 1:
+                logging.info(
+                    f"Multiple {ancillary_name} models configured. Using {selected_name} (with respect to priority order)")
+            else:
+                logging.info(
+                    f"Only one {ancillary_name} model configured: using {selected_name}")
+            break
+
+    # Clean up: remove all tried models EXCEPT the selected one
+    if selected_name is not None:
+        for name in tried_names:
+            if name != selected_name:
+                meta.rasters = meta.rasters.drop([name])
+
+    # Prepare metadata for traceability
+    ancillary_metadata = None
+    if selected_name is not None:
+        ancillary_metadata = {
+            'ancillary_source_model': selected_name,
+            'ancillary_source_path': selected_path
+        }
+
+    return map_model, ancillary_metadata
+
+
+@timing(logger=root_logger.debug)
 def inverse_dsig_wspd(
     dual_pol,
     inc,
@@ -315,7 +519,7 @@ def inverse_dsig_wspd(
         ancillary wind
             | (for example ecmwf winds), in **ANTENNA convention**,
     nesz_cr: xarray.DataArray
-        noise equivalent sigma0 | flattened or not 
+        noise equivalent sigma0 | flattened or not
     dsig_cr_name:  str
         dsig_cr name
     model_co: str
@@ -325,11 +529,11 @@ def inverse_dsig_wspd(
 
     Returns
     -------
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in copol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in dualpol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in crosspol in ** antenna convention** .
     xarray.DataArray | array
         alpha (ponderation between co and crosspol)
@@ -372,7 +576,7 @@ def inverse_dsig_wspd(
     return wind_co, None, None, None
 
 
-@timing(logger=logger.debug)
+@timing(logger=root_logger.debug)
 def inverse(
     dual_pol,
     inc,
@@ -411,11 +615,11 @@ def inverse(
 
     Returns
     -------
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in copol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in dualpol in ** antenna convention** .
-    xarray.DataArray 
+    xarray.DataArray
         inverted wind in crosspol in ** antenna convention** .
 
     See Also
@@ -467,7 +671,7 @@ def inverse(
     return wind_co, None, None
 
 
-@timing(logger=logger.debug)
+@timing(logger=root_logger.debug)
 def makeL2asOwi(xr_dataset, config):
     """
     Rename xr_dataset variables and attributes to match naming convention.
@@ -727,7 +931,9 @@ def makeL2asOwi(xr_dataset, config):
             "sigma0_raw",
             "ancillary_wind",
             "nesz",
-            "spatial_ref",
+            "model_U10",
+            "model_V10"
+
         ]
     )
     if "sigma0_raw__corrected" in xr_dataset:
@@ -797,6 +1003,11 @@ def preprocess(
     if os.path.exists(config_path):
         with open(config_path, "r") as file:
             config_base = yaml.load(file, Loader=yaml.FullLoader)
+
+        # Validate configuration structure
+        from grdwindinversion.utils import test_config
+        test_config(config_base)
+
         try:
             # check if sensor is in the config
             config = config_base[sensor]
@@ -808,6 +1019,9 @@ def preprocess(
 
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
+
+    # Add masks to meta if configured (land, ice, lakes, etc.)
+    masks_by_category = addMasks_toMeta(meta, config_base)
 
     # si une des deux n'est pas VV VH HH HV on ne fait rien
     if not all([pol in ["VV", "VH", "HH", "HV"] for pol in meta.pols.split(" ")]):
@@ -825,7 +1039,7 @@ def preprocess(
         winddir_convention = config_base["winddir_convention"]
     else:
         winddir_convention = "meteorological"
-        logging.warning(
+        logging.info(
             f'Using meteorological convention because "winddir_convention" was not found in config.'
         )
     config["winddir_convention"] = winddir_convention
@@ -834,17 +1048,17 @@ def preprocess(
         add_gradientsfeatures = config_base["add_gradientsfeatures"]
     else:
         add_gradientsfeatures = False
-        logging.warning(f"Not computing gradients by default")
+        logging.info(f"Not computing gradients by default")
     config["add_gradientsfeatures"] = add_gradientsfeatures
 
     if "add_nrcs_model" in config_base:
         add_nrcs_model = config_base["add_nrcs_model"]
         add_nrcs_model = False
-        logging.warning(
+        logging.info(
             f"Force add_nrcs_model to be false, before fixing an issue")
     else:
         add_nrcs_model = False
-        logging.warning(f"Not computing nrcs from model by default")
+        logging.info(f"Not computing nrcs from model by default")
     config["add_nrcs_model"] = add_nrcs_model
 
     # creating a dictionnary of parameters
@@ -878,11 +1092,15 @@ def preprocess(
         raise FileExistsError("outfile %s already exists" % out_file)
 
     ancillary_name = config["ancillary"]
-    map_model = getAncillary(meta, ancillary_name)
+    map_model, ancillary_metadata = getAncillary(
+        meta, ancillary_name, config_base)
     if map_model is None:
         raise Exception(
             f"the weather model is not set `map_model` is None -> you probably don't have access to {ancillary_name} archive"
         )
+    if ancillary_metadata is None:
+        raise Exception(
+            f"ancillary_metadata must be defined. There is an error in getAncillary function")
 
     try:
         logging.info(f"recalibration = {recalibration}")
@@ -932,7 +1150,6 @@ def preprocess(
     config["fct_dataset"] = fct_dataset
     config["map_model"] = map_model
 
-    # load
     xr_dataset = xr_dataset.load()
 
     # defining dual_pol, and gmfs by channel
@@ -948,10 +1165,12 @@ def preprocess(
         crosspol_gmf = "VH"
     else:
         logging.warning(
-            "for now this processor does not support entirely HH+HV acquisitions\n "
+            "inversion_rules warning : for now this processor does not support entirely HH+HV acquisitions\n "
             "it wont crash but it will use HH+VH GMF for wind inversion -> wrong hypothesis\n "
             "!! dual WIND SPEED IS NOT USABLE !! But co WIND SPEED IS USABLE !!"
         )
+        config["return_status"] = 99
+
         copol = "HH"
         crosspol = "HV"
         copol_gmf = "HH"
@@ -996,15 +1215,14 @@ def preprocess(
     config["dsig_cr_step"] = dsig_cr_step
     config["dsig_cr_name"] = dsig_cr_name
     config["apply_flattening"] = apply_flattening
-
     # need to load LUTs before inversion
     nc_luts = [x for x in [model_co, model_cross] if x.startswith("nc_lut")]
 
     if len(nc_luts) > 0:
-        windspeed.register_nc_luts(getConf()["nc_luts_path"])
+        windspeed.register_nc_luts(config_base["nc_luts_path"])
 
     if model_co == "gmf_cmod7":
-        windspeed.register_cmod7(getConf()["lut_cmod7_path"])
+        windspeed.register_cmod7(config_base["lut_cmod7_path"])
     #  Step 2 - clean and prepare dataset
 
     # variables to not keep in the L2
@@ -1057,33 +1275,39 @@ def preprocess(
     xr_dataset.elevation.attrs["standard_name"] = "elevation"
 
     # offboresight
-    # TOREMOVE
-    if "offboresight" in xr_dataset:
-        xr_dataset.offboresight.attrs["units"] = "degrees"
-        xr_dataset.offboresight.attrs["long_name"] = (
-            "Offboresight angle at wind cell center"
-        )
-        xr_dataset.elevation.attrs["standard_name"] = "offboresight"
-
-    # masks (no ice / no_valid)
-    xr_dataset.land_mask.values = binary_dilation(
-        xr_dataset["land_mask"].values.astype("uint8"),
-        structure=np.ones((3, 3), np.uint8),
-        iterations=3,
+    xr_dataset.offboresight.attrs["units"] = "degrees"
+    xr_dataset.offboresight.attrs["long_name"] = (
+        "Offboresight angle at wind cell center"
     )
-    xr_dataset.land_mask.attrs["long_name"] = "Mask of data"
-    xr_dataset.land_mask.attrs["valid_range"] = np.array([0, 1])
-    xr_dataset.land_mask.attrs["flag_values"] = np.array([0, 1])
-    xr_dataset.land_mask.attrs["flag_meanings"] = "valid no_valid"
+    xr_dataset.offboresight.attrs["standard_name"] = "offboresight"
 
+    # merge land masks
+    land_mask_strategy = config_base.get("LAND_MASK_STRATEGY", "merge")
+    logging.info(f"land_mask_strategy = {land_mask_strategy}")
+
+    # Store masks_by_category in config for later cleanup
+    config["masks_by_category"] = masks_by_category
+
+    merged_land_masks = None
+    if land_mask_strategy == "merge" and "land" in masks_by_category:
+        mergeLandMasks(xr_dataset, masks_by_category["land"])
+        merged_land_masks = masks_by_category["land"]
+
+    # Process land mask with coastal zone detection (3-level system)
+    # 0 = ocean, 1 = coastal, 2 = land
+    processLandMask(xr_dataset, dilation_iterations=3,
+                    merged_masks=merged_land_masks)
+
+    # Create main mask from land_mask
+    # For now, mask uses the same values as land_mask
+    # Can be extended later to include ice (value 3) and other categories
     logging.debug("mask is a copy of land_mask")
-
     xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask)
     xr_dataset.mask.attrs = {}
     xr_dataset.mask.attrs["long_name"] = "Mask of data"
     xr_dataset.mask.attrs["valid_range"] = np.array([0, 3])
     xr_dataset.mask.attrs["flag_values"] = np.array([0, 1, 2, 3])
-    xr_dataset.mask.attrs["flag_meanings"] = "valid land ice no_valid"
+    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice"
 
     # ancillary
     xr_dataset["ancillary_wind_direction"] = (
@@ -1091,8 +1315,9 @@ def preprocess(
                           xr_dataset.model_U10)) + 180
     ) % 360
 
+    # Keep ocean (0) and coastal (1) zones for ancillary wind
     xr_dataset["ancillary_wind_direction"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["ancillary_wind_direction"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["ancillary_wind_direction"]
     ).transpose(*xr_dataset["ancillary_wind_direction"].dims)
     xr_dataset["ancillary_wind_direction"].attrs = {}
     xr_dataset["ancillary_wind_direction"].attrs["units"] = "degrees_north"
@@ -1105,7 +1330,7 @@ def preprocess(
         xr_dataset["model_U10"] ** 2 + xr_dataset["model_V10"] ** 2
     )
     xr_dataset["ancillary_wind_speed"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["ancillary_wind_speed"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["ancillary_wind_speed"]
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
     xr_dataset["ancillary_wind_speed"].attrs = {}
     xr_dataset["ancillary_wind_speed"].attrs["units"] = "m s^-1"
@@ -1115,7 +1340,7 @@ def preprocess(
     xr_dataset["ancillary_wind_speed"].attrs["standart_name"] = "wind_speed"
 
     xr_dataset["ancillary_wind"] = xr.where(
-        xr_dataset["mask"],
+        xr_dataset["mask"] >= 2,
         np.nan,
         (
             xr_dataset.ancillary_wind_speed
@@ -1127,15 +1352,24 @@ def preprocess(
             )
         ),
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
+    xr_dataset["ancillary_wind"].attrs = {}
+    xr_dataset["ancillary_wind"].attrs["long_name"] = f"{ancillary_name} wind in complex form for inversion"
+    xr_dataset["ancillary_wind"].attrs[
+        "description"] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
 
-    xr_dataset.attrs["ancillary_source"] = (
-        xr_dataset["model_U10"].attrs["history"].split("decoded: ")[1].strip()
-    )
-    xr_dataset = xr_dataset.drop_vars(["model_U10", "model_V10"])
+    # Add ancillary metadata to model variables
+
+    for attr_key, attr_value in ancillary_metadata.items():
+        for var_name in ['model_U10', 'model_V10', 'ancillary_wind_speed', 'ancillary_wind_direction', 'ancillary_wind']:
+            if var_name in xr_dataset:
+                xr_dataset[var_name].attrs[attr_key] = attr_value
+
+        xr_dataset.attrs[attr_key] = attr_value
 
     # nrcs processing
+    # Keep ocean (0) and coastal (1) zones, mask out land (2) and ice (3)
     xr_dataset["sigma0_ocean"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["sigma0"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["sigma0"]
     ).transpose(*xr_dataset["sigma0"].dims)
     xr_dataset["sigma0_ocean"].attrs = xr_dataset["sigma0"].attrs
     #  we forced it to 1e-15
@@ -1143,19 +1377,21 @@ def preprocess(
         "comment"
     ] = "clipped, no values <=0 ; 1e-15 instread"
 
-    # rajout d'un mask pour les valeurs <=0:
+    xr_dataset["sigma0_ocean"] = xr.where(
+        xr_dataset["sigma0_ocean"] <= 0, 1e-15, xr_dataset["sigma0_ocean"]
+    )
+
+    # add a mask for values <=0:
     xr_dataset["sigma0_mask"] = xr.where(
         xr_dataset["sigma0_ocean"] <= 0, 1, 0
     ).transpose(*xr_dataset["sigma0"].dims)
     xr_dataset.sigma0_mask.attrs["valid_range"] = np.array([0, 1])
     xr_dataset.sigma0_mask.attrs["flag_values"] = np.array([0, 1])
     xr_dataset.sigma0_mask.attrs["flag_meanings"] = "valid no_valid"
-    xr_dataset["sigma0_ocean"] = xr.where(
-        xr_dataset["sigma0_ocean"] <= 0, 1e-15, xr_dataset["sigma0_ocean"]
-    )
 
+    # Keep ocean (0) and coastal (1) zones for sigma0_ocean_raw too
     xr_dataset["sigma0_ocean_raw"] = xr.where(
-        xr_dataset["mask"], np.nan, xr_dataset["sigma0_raw"]
+        xr_dataset["mask"] >= 2, np.nan, xr_dataset["sigma0_raw"]
     ).transpose(*xr_dataset["sigma0_raw"].dims)
 
     xr_dataset["sigma0_ocean_raw"].attrs = xr_dataset["sigma0_raw"].attrs
@@ -1166,12 +1402,26 @@ def preprocess(
 
     # processing
     if dual_pol:
-
         xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
             xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
 
-        xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-            ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+        try:
+            xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
+                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+        except Exception as e:
+            if apply_flattening:
+                # error
+                logging.error("Error during NESZ flattening computation")
+                logging.info("%s", traceback.format_exc())
+                raise e
+            else:
+                # replace with nans
+                logging.warning("nesz_flattening warning => Error during NESZ flattening computation, but apply_flattening is False, \
+                                so continuing without nesz_cross_flattened and replace with NaNs\n \
+                                The error comes probably from NaN in incidence angle")
+                config["return_status"] = 99
+                xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
+                    ['line', 'sample'], np.full(xr_dataset.nesz.sel(pol=crosspol).shape, np.nan)))
 
         xr_dataset['nesz_cross_flattened'].attrs[
             "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
@@ -1228,7 +1478,7 @@ def preprocess(
 
         for idx, gmf_name in enumerate(gmf_names):
 
-            @timing(logger=logger.info)
+            @timing(logger=root_logger.info)
             def apply_lut_to_dataset():
                 lut = xsarsea.windspeed.get_model(
                     gmf_name).to_lut(unit="linear")
@@ -1319,13 +1569,13 @@ def process_gradients(xr_dataset, config):
 
         xr_dataset_100["sigma0_detrend"] = sigma0_detrend_combined
 
-    xr_dataset_100.land_mask.values = binary_dilation(
-        xr_dataset_100["land_mask"].values.astype("uint8"),
-        structure=np.ones((3, 3), np.uint8),
-        iterations=3,
-    )
+    # Process land mask with coastal zone detection (3-level system)
+    processLandMask(xr_dataset_100, dilation_iterations=3)
+
+    # Mask sigma0_detrend where land_mask >= 2 (land and ice)
+    # Keep ocean (0) and coastal (1) zones
     xr_dataset_100["sigma0_detrend"] = xr.where(
-        xr_dataset_100["land_mask"], np.nan, xr_dataset_100["sigma0"]
+        xr_dataset_100["land_mask"] >= 2, np.nan, xr_dataset_100["sigma0"]
     ).transpose(*xr_dataset_100["sigma0"].dims)
 
     xr_dataset_100["ancillary_wind"] = (
@@ -1361,15 +1611,15 @@ def process_gradients(xr_dataset, config):
             }
         )
     else:
-        logger.warn(
-            "'longitude' not found in streaks_indiv : there is probably an error"
+        root_logger.warning(
+            "process_gradients warning : 'longitude' not found in streaks_indiv : there is probably an error"
         )
         xr_dataset_streaks = None
 
     return xr_dataset, xr_dataset_streaks
 
 
-@timing(logger=logger.info)
+@timing(logger=root_logger.info)
 def makeL2(
     filename, outdir, config_path, overwrite=False, generateCSV=True, resolution="1000m"
 ):
@@ -1403,6 +1653,19 @@ def makeL2(
     xr_dataset, out_file, config = preprocess(
         filename, outdir, config_path, overwrite, resolution
     )
+
+    # Drop only masks added from config (not internal masks like sigma0_mask, owiMask_Nrcs)
+    masks_by_category = config.get("masks_by_category", {})
+    masks_to_drop = []
+    for category, mask_list in masks_by_category.items():
+        masks_to_drop.extend(mask_list)
+
+    # Only drop masks that actually exist in the dataset (with XSAR suffix)
+    vars_to_drop = [
+        m+XSAR_MASK_SUFFIX for m in masks_to_drop if (m+XSAR_MASK_SUFFIX) in xr_dataset.data_vars]
+    if vars_to_drop:
+        logging.info(f"Dropping external masks of dataset: {vars_to_drop}")
+        xr_dataset = xr_dataset.drop_vars(vars_to_drop)
 
     if config["add_gradientsfeatures"]:
         xr_dataset, xr_dataset_streaks = process_gradients(xr_dataset, config)
@@ -1441,14 +1704,19 @@ def makeL2(
         "resolution": config.pop("resolution", None),
     }
 
+    config["return_status"] = 0  # default value SUCCESS
     logging.info("Checking incidence range within LUTS incidence range")
-    #  warning if incidence is out of lut incidence range
     inc_check_co, inc_check_cross = check_incidence_range(
         xr_dataset["incidence"], [model_co, model_cross], **kwargs
     )
+
+    if not inc_check_co or not inc_check_cross:
+        config["return_status"] = 99
+
     if dsig_cr_step == "nrcs":
-        logging.info(
-            "dsig_cr_step is nrcs : polarization are mixed at cost function step")
+        if dual_pol:
+            logging.info(
+                "dsig_cr_step is nrcs : polarization are mixed at cost function step")
         wind_co, wind_dual, windspeed_cr = inverse(
             dual_pol,
             inc=xr_dataset["incidence"],
@@ -1461,13 +1729,17 @@ def makeL2(
             **kwargs,
         )
     elif dsig_cr_step == "wspd":
-        logging.info(
-            "dsig_cr_step is wspd : polarization are mixed at winds speed step")
+        if dual_pol:
+            logging.info(
+                "dsig_cr_step is wspd : polarization are mixed at winds speed step")
 
-        if apply_flattening:
-            nesz_cross = xr_dataset["nesz_cross_flattened"]
+        if dual_pol:
+            if apply_flattening:
+                nesz_cross = xr_dataset["nesz_cross_flattened"]
+            else:
+                nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
         else:
-            nesz_cross = xr_dataset.nesz.sel(pol=crosspol)
+            nesz_cross = None
 
         wind_co, wind_dual, windspeed_cr, alpha = inverse_dsig_wspd(
             dual_pol,
@@ -1481,10 +1753,12 @@ def makeL2(
             model_cross=model_cross,
             **kwargs
         )
-        xr_dataset["alpha"] = xr.DataArray(
-            data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
-        xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
-        xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
+        if dual_pol and alpha is not None:
+            xr_dataset["alpha"] = xr.DataArray(
+                data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
+            xr_dataset["alpha"].attrs["apply_flattening"] = str(
+                apply_flattening)
+            xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
 
     else:
         raise ValueError(
@@ -1615,13 +1889,15 @@ def makeL2(
         "wnf_3km_average": "False",
         "owiWindSpeedSrc": "owiWindSpeed",
         "owiWindDirectionSrc": "/",
-        "ancillary_source": xr_dataset.attrs["ancillary_source"],
+        "ancillary_source_model": xr_dataset.attrs["ancillary_source_model"],
+        "ancillary_source_path": xr_dataset.attrs["ancillary_source_path"],
         "winddir_convention": config["winddir_convention"],
         "incidence_within_lut_copol_incidence_range": str(inc_check_co),
         "incidence_within_lut_crosspol_incidence_range": str(inc_check_cross),
         "swath": xr_dataset.attrs["swath"],
         "footprint": xr_dataset.attrs["footprint"],
         "coverage": xr_dataset.attrs["coverage"],
+        "cross_antimeridian": str(config["meta"].cross_antimeridian)
     }
 
     for recalib_attrs in ["aux_pp1_recal", "aux_pp1", "aux_cal_recal", "aux_cal"]:
@@ -1679,7 +1955,10 @@ def makeL2(
 
     logging.info("OK for %s ", os.path.basename(filename))
 
-    return out_file, xr_dataset
+    if config["add_gradientsfeatures"] and xr_dataset_streaks is None:
+        config["return_status"] = 99
+
+    return out_file, xr_dataset, config["return_status"]
 
 
 def transform_winddir(wind_cpx, ground_heading, winddir_convention="meteorological"):
@@ -1719,6 +1998,7 @@ def transform_winddir(wind_cpx, ground_heading, winddir_convention="meteorologic
         logging.warning(
             f"wind direction convention {winddir_convention} is not supported, using meteorological",
         )
+
         long_name = "Wind direction in meteorological convention (clockwise, from), ex: 0°=from north, 90°=from east"
 
     dataArray = xsarsea.dir_to_360(dataArray)

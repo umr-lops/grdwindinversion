@@ -20,7 +20,6 @@ def processor_starting_point():
 
     from grdwindinversion.inversion import makeL2
     from grdwindinversion.utils_memory import get_memory_usage
-    from grdwindinversion.load_config import config_path
     import grdwindinversion
 
     parser = argparse.ArgumentParser(
@@ -68,8 +67,6 @@ def processor_starting_point():
         )
     t0 = time.time()
 
-    logging.info("config path: %s", config_path)
-
     input_file = args.input_file.rstrip("/")
     logging.info("input file: %s", input_file)
 
@@ -84,7 +81,7 @@ def processor_starting_point():
     if resolution == "full":
         resolution = None
 
-    out_file, outputds = makeL2(
+    out_file, outputds, return_status = makeL2(
         input_file,
         out_folder,
         config_file,
@@ -96,6 +93,8 @@ def processor_starting_point():
     logging.info("out_file: %s", out_file)
     logging.info("current memory usage: %s ", get_memory_usage(var="current"))
     logging.info("done in %1.3f min", (time.time() - t0) / 60.0)
+
+    sys.exit(return_status)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,22 @@
+unit_test_s1_product: "./test_data/L1/S1A_IW_GRDH_1SDV_20210909T130650_20210909T130715_039605_04AE83_C34F.SAFE"
+unit_test_rcm_product: "./test_data/L1/RCM1_OK2767220_PK2769320_1_SCLND_20230930_214014_VV_VH_GRD"
+unit_test_rs2_product: "./test_data/L1/RS2_OK141302_PK1242223_DK1208537_SCWA_20220904_093402_VV_VH_SGF"
+
+masks:
+    land:
+        - name: "gshhg"
+          path: "./test_data/masks/gshhg-shp-2.3.7-h/GSHHS_shp/h/GSHHS_h_L1.shp"
+
+ancillary_sources:
+    ecmwf:
+        - name: "ecmwf_0100_1h"
+          path: "./test_data/ECMWF/forecast/hourly/0100deg/netcdf_light/%Y/%j/ECMWF_FORECAST_0100_%Y%m%d%H%M_10U_10V.nc"
+        - name: "ecmwf_0125_1h"
+          path: "./test_data/ECMWF/0.125deg/1h/forecasts/%Y/%j/ecmwf_%Y%m%d%H%M.nc"
+    era5:
+        - name: "era5_0250_1h"
+          path: "./test_data/ERA5/%Y/%m/era_5-copernicus__%Y%m%d.nc"
+
+nc_luts_path: "./test_data/GMFS/nc_luts"
+lut_cmod7_path: "./test_data/GMFS/v1.6/GMF_cmod7_official/cmod7_and_python_script"
+lut_ms1ahw_path: "./test_data/GMFS/v1.6/GMF_cmodms1ahw"

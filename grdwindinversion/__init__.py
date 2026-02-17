@@ -1,12 +1,13 @@
-__all__ = ["inversion"]
-# try:
-#     from importlib import metadata
-# except ImportError: # for Python<3.8
-#     import importlib_metadata as metadata
-# __version__ = metadata.version('grdwindinversion')
-from grdwindinversion import *
 from importlib.metadata import version
-from grdwindinversion.inversion import inverse
+from grdwindinversion.inversion import inverse, makeL2, makeL2asOwi, getSensorMetaDataset
+
+__all__ = [
+    "inverse",
+    "makeL2",
+    "makeL2asOwi",
+    "getSensorMetaDataset",
+    "inversion",
+]
 
 try:
     __version__ = version("grdwindinversion")

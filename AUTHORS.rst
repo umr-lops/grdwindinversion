@@ -5,10 +5,6 @@ Authors
 Development Lead
 ----------------
 
-* Vincent Lheureux <vincent.lheureux@ifremer.fr>
+* Vincent Lheureux <vinc.lheureux@gmail.com>
 * Antoine Grouazel <antoine.grouazel@ifremer.fr>
 
-Contributors
-------------
-
-None yet. Why not be the first?
