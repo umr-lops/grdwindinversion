@@ -1323,9 +1323,9 @@ def preprocess(
     xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask)
     xr_dataset.mask.attrs = {}
     xr_dataset.mask.attrs["long_name"] = "Mask of data"
-    xr_dataset.mask.attrs["valid_range"] = np.array([0, 3])
-    xr_dataset.mask.attrs["flag_values"] = np.array([0, 1, 2, 3])
-    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice"
+    xr_dataset.mask.attrs["valid_range"] = np.array([0, 4])
+    xr_dataset.mask.attrs["flag_values"] = np.array([0, 1, 2, 3, 4])
+    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice no_data"
 
     # ancillary
     xr_dataset["ancillary_wind_direction"] = (
