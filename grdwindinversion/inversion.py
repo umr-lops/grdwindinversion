@@ -1318,14 +1318,13 @@ def preprocess(
 
     # Create main mask from land_mask
     # For now, mask uses the same values as land_mask
-    # Can be extended later to include ice (value 3) and other categories
+    # Can be extended later to include ice (value 4) and other categories
     logging.debug("mask is a copy of land_mask")
-    xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask)
+    xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask).astype(np.ubyte)
     xr_dataset.mask.attrs = {}
     xr_dataset.mask.attrs["long_name"] = "Mask of data"
-    xr_dataset.mask.attrs["valid_range"] = np.array([0, 3])
-    xr_dataset.mask.attrs["flag_values"] = np.array([0, 1, 2, 3])
-    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice"
+    xr_dataset.mask.attrs["flag_masks"] = np.array([0, 1, 2, 4, 8, 16], dtype=np.ubyte)
+    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice no_data rfi"
 
     # ancillary
     xr_dataset["ancillary_wind_direction"] = (
