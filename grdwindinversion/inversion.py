@@ -47,7 +47,6 @@ SENSOR_METADATA = {
 # Mask naming convention used by xsar
 XSAR_MASK_SUFFIX = "_mask"
 
-
 def getSensorMetaDataset(filename):
     """
     Find the sensor name and the corresponding meta and dataset functions
@@ -318,7 +317,7 @@ def mergeLandMasks(xr_dataset: xr.Dataset, land_mask_names: list) -> xr.Dataset:
     return xr_dataset
 
 
-def processLandMask(xr_dataset, dilation_iterations=3, merged_masks=None):
+def processLandMask(xr_dataset, dilation_iterations=2, merged_masks=None):
     """
     Process land mask to create a 3-level mask system with coastal zone detection.
 
@@ -335,7 +334,7 @@ def processLandMask(xr_dataset, dilation_iterations=3, merged_masks=None):
     xr_dataset : xarray.Dataset
         Dataset containing the land_mask variable
     dilation_iterations : int, optional
-        Number of dilation iterations to define coastal zone width (default: 3)
+        Number of dilation iterations to define coastal zone width (default: 2)
     merged_masks : list of str, optional
         Names of masks that were merged into land_mask (for history tracking)
 
@@ -1295,8 +1294,7 @@ def preprocess(
 
     # Process land mask with coastal zone detection (3-level system)
     # 0 = ocean, 1 = coastal, 2 = land
-    processLandMask(xr_dataset, dilation_iterations=3,
-                    merged_masks=merged_land_masks)
+    processLandMask(xr_dataset, merged_masks=merged_land_masks)
 
     # Create main mask from land_mask
     # For now, mask uses the same values as land_mask
@@ -1570,7 +1568,7 @@ def process_gradients(xr_dataset, config):
         xr_dataset_100["sigma0_detrend"] = sigma0_detrend_combined
 
     # Process land mask with coastal zone detection (3-level system)
-    processLandMask(xr_dataset_100, dilation_iterations=3)
+    processLandMask(xr_dataset_100, dilation_iterations=2)
 
     # Mask sigma0_detrend where land_mask >= 2 (land and ice)
     # Keep ocean (0) and coastal (1) zones
