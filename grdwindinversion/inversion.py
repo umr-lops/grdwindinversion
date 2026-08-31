@@ -17,7 +17,13 @@ import os
 import logging
 
 
-from grdwindinversion.utils import check_incidence_range, get_pol_ratio_name, timing, convert_polarization_name
+from grdwindinversion.utils import (
+    check_incidence_range,
+    get_pol_ratio_name,
+    timing,
+    convert_polarization_name,
+)
+
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -66,9 +72,7 @@ def getSensorMetaDataset(filename):
             return sensor_info
 
     supported_sensors = "|".join(SENSOR_METADATA.keys())
-    raise ValueError(
-        f"must be {supported_sensors}, got filename {filename}"
-    )
+    raise ValueError(f"must be {supported_sensors}, got filename {filename}")
 
 
 def getOutputName(
@@ -157,9 +161,7 @@ def getOutputName(
         new_format = f"{MISSIONID.lower()}-{SWATH.lower()}-owi-{convert_polarization_name(POLARIZATION)}-{meta_start_date.lower()}-{meta_stop_date.lower()}-xxxxx-xxxxx.nc"
 
     else:
-        raise ValueError(
-            f"sensor must be S1A|S1B|S1C|S1D|RS2|RCM, got sensor {sensor}"
-        )
+        raise ValueError(f"sensor must be S1A|S1B|S1C|S1D|RS2|RCM, got sensor {sensor}")
 
     if subdir:
         out_file = os.path.join(outdir, basename, new_format)
@@ -206,9 +208,10 @@ def addMasks_toMeta(meta: xsar.BaseMeta, conf: dict) -> dict:
         If meta object doesn't have set_mask_feature method
     """
     # Validate meta object has required method
-    if not hasattr(meta, 'set_mask_feature'):
+    if not hasattr(meta, "set_mask_feature"):
         raise AttributeError(
-            f"Meta object of type {type(meta).__name__} must have a 'set_mask_feature' method")
+            f"Meta object of type {type(meta).__name__} must have a 'set_mask_feature' method"
+        )
 
     masks_by_category = {}
 
@@ -220,32 +223,43 @@ def addMasks_toMeta(meta: xsar.BaseMeta, conf: dict) -> dict:
             if isinstance(mask_list, list):
                 masks_by_category[category] = []
                 for mask_item in mask_list:
-                    if isinstance(mask_item, dict) and "path" in mask_item and "name" in mask_item:
+                    if (
+                        isinstance(mask_item, dict)
+                        and "path" in mask_item
+                        and "name" in mask_item
+                    ):
                         mask_name = mask_item["name"]
                         mask_path = mask_item["path"]
                         try:
                             logging.debug("%s path: %s", mask_name, mask_path)
                             meta.set_mask_feature(mask_name, mask_path)
                             logging.info(
-                                "Mask feature '%s' set from %s", mask_name, mask_path)
+                                "Mask feature '%s' set from %s", mask_name, mask_path
+                            )
                             masks_by_category[category].append(mask_name)
                         except (IOError, OSError, FileNotFoundError) as e:
                             logging.error(
                                 "Failed to load mask file '%s' from path '%s': %s",
-                                mask_name, mask_path, str(e))
+                                mask_name,
+                                mask_path,
+                                str(e),
+                            )
                             logging.debug("%s", traceback.format_exc())
                         except (ValueError, RuntimeError) as e:
                             logging.error(
-                                "Failed to process mask '%s': %s", mask_name, str(e))
+                                "Failed to process mask '%s': %s", mask_name, str(e)
+                            )
                             logging.debug("%s", traceback.format_exc())
                     else:
                         logging.warning(
                             "Invalid mask configuration in category '%s': missing 'name' or 'path' field",
-                            category)
+                            category,
+                        )
             else:
                 logging.warning(
                     "Mask category '%s' should contain a list, got %s",
-                    category, type(mask_list).__name__
+                    category,
+                    type(mask_list).__name__,
                 )
 
     return masks_by_category
@@ -284,14 +298,14 @@ def mergeLandMasks(xr_dataset: xr.Dataset, land_mask_names: list) -> xr.Dataset:
     if "land_mask" not in xr_dataset:
         raise ValueError(
             "Dataset must contain a 'land_mask' variable. "
-            f"Available variables: {list(xr_dataset.data_vars.keys())}")
+            f"Available variables: {list(xr_dataset.data_vars.keys())}"
+        )
 
     if not land_mask_names:
         logging.debug("No additional land masks to merge")
         return xr_dataset
 
-    logging.info("Merging %d land masks: %s", len(
-        land_mask_names), land_mask_names)
+    logging.info("Merging %d land masks: %s", len(land_mask_names), land_mask_names)
 
     # Start with the default land_mask from xsar
     merged_mask = xr_dataset["land_mask"].values.astype("uint8")
@@ -308,7 +322,8 @@ def mergeLandMasks(xr_dataset: xr.Dataset, land_mask_names: list) -> xr.Dataset:
             merged_mask = np.maximum(merged_mask, mask_values)
         else:
             logging.warning(
-                "Mask '%s' not found in dataset, skipping", dataset_mask_name)
+                "Mask '%s' not found in dataset, skipping", dataset_mask_name
+            )
 
     # Update the main land_mask
     xr_dataset.land_mask.values = merged_mask
@@ -385,11 +400,12 @@ def processLandMask(xr_dataset, dilation_iterations=2, merged_masks=None):
     else:
         merge_info = ""
 
-    new_history = f"{merge_info}3-level land mask with coastal zone detection via binary dilation"
+    new_history = (
+        f"{merge_info}3-level land mask with coastal zone detection via binary dilation"
+    )
 
     if existing_history:
-        xr_dataset.land_mask.attrs["history"] = existing_history + \
-            "; " + new_history
+        xr_dataset.land_mask.attrs["history"] = existing_history + "; " + new_history
     else:
         xr_dataset.land_mask.attrs["history"] = new_history
 
@@ -416,20 +432,22 @@ def getAncillary(meta, ancillary_name, conf):
         - metadata (dict): ancillary metadata with 'source' and 'source_path' keys
     """
     logging.debug("conf: %s", conf)
-    if 'ancillary_sources' not in conf:
+    if "ancillary_sources" not in conf:
         raise ValueError("Configuration must contain 'ancillary_sources'")
 
-    if ancillary_name not in conf['ancillary_sources']:
+    if ancillary_name not in conf["ancillary_sources"]:
         raise ValueError(
-            f"Configuration 'ancillary_sources' must contain '{ancillary_name}'")
+            f"Configuration 'ancillary_sources' must contain '{ancillary_name}'"
+        )
 
     if ancillary_name not in ["ecmwf", "era5"]:
         logging.warning("We advice to use either ecmwf or era5.")
 
-    ancillary_sources = conf['ancillary_sources'][ancillary_name]
+    ancillary_sources = conf["ancillary_sources"][ancillary_name]
     if not ancillary_sources:
         raise ValueError(
-            f"At least one ancillary model {ancillary_name} must be configured in ancillary_sources")
+            f"At least one ancillary model {ancillary_name} must be configured in ancillary_sources"
+        )
 
     map_model = None
     selected_name = None
@@ -438,8 +456,8 @@ def getAncillary(meta, ancillary_name, conf):
 
     # Loop through models in config order to find the first one that exists
     for source in ancillary_sources:
-        model_name = source['name']
-        model_path = source['path']
+        model_name = source["name"]
+        model_path = source["path"]
         logging.debug("%s : %s", model_name, model_path)
 
         # Set raster to check if file exists
@@ -450,9 +468,7 @@ def getAncillary(meta, ancillary_name, conf):
 
         model_file = model_info["get_function"](
             model_info["resource"],
-            date=datetime.datetime.strptime(
-                meta.start_date, "%Y-%m-%d %H:%M:%S.%f"
-            ),
+            date=datetime.datetime.strptime(meta.start_date, "%Y-%m-%d %H:%M:%S.%f"),
         )[1]
 
         if os.path.isfile(model_file):
@@ -465,10 +481,12 @@ def getAncillary(meta, ancillary_name, conf):
             # Log selection
             if len(ancillary_sources) > 1:
                 logging.info(
-                    f"Multiple {ancillary_name} models configured. Using {selected_name} (with respect to priority order)")
+                    f"Multiple {ancillary_name} models configured. Using {selected_name} (with respect to priority order)"
+                )
             else:
                 logging.info(
-                    f"Only one {ancillary_name} model configured: using {selected_name}")
+                    f"Only one {ancillary_name} model configured: using {selected_name}"
+                )
             break
 
     # Clean up: remove all tried models EXCEPT the selected one
@@ -481,8 +499,8 @@ def getAncillary(meta, ancillary_name, conf):
     ancillary_metadata = None
     if selected_name is not None:
         ancillary_metadata = {
-            'ancillary_source_model': selected_name,
-            'ancillary_source_path': selected_path
+            "ancillary_source_model": selected_name,
+            "ancillary_source_path": selected_path,
         }
 
     return map_model, ancillary_metadata
@@ -546,11 +564,7 @@ def inverse_dsig_wspd(
     # dsig_cr_step == "wspd":
 
     wind_co = xsarsea.windspeed.invert_from_model(
-        inc,
-        sigma0,
-        ancillary_wind=ancillary_wind,
-        model=model_co,
-        **kwargs
+        inc, sigma0, ancillary_wind=ancillary_wind, model=model_co, **kwargs
     )
 
     if dual_pol:
@@ -564,7 +578,7 @@ def inverse_dsig_wspd(
 
         wspd_co = np.abs(wind_co)
         wspd_cross = np.abs(wind_cross)
-        SNR_cross = sigma0_dual.values/nesz_cr.values
+        SNR_cross = sigma0_dual.values / nesz_cr.values
         alpha = windspeed.get_dsig_wspd(dsig_cr_name, wind_cross, SNR_cross)
 
         wpsd_dual = alpha * wspd_co + (1 - alpha) * wspd_cross
@@ -711,8 +725,7 @@ def makeL2asOwi(xr_dataset, config):
     )
 
     if "offboresight" in xr_dataset:
-        xr_dataset = xr_dataset.rename(
-            {"offboresight": "owiOffboresightAngle"})
+        xr_dataset = xr_dataset.rename({"offboresight": "owiOffboresightAngle"})
 
     if config["add_nrcs_model"]:
         xr_dataset = xr_dataset.rename({"ancillary_nrcs": "owiAncillaryNrcs"})
@@ -817,21 +830,27 @@ def makeL2asOwi(xr_dataset, config):
 
     if config["l2_params"]["dual_pol"]:
         if config["dsig_cr_step"] == "nrcs":
-            xr_dataset = xr_dataset.rename({
-                'dsig_cross': 'owiDsig_cross',
-            })
+            xr_dataset = xr_dataset.rename(
+                {
+                    "dsig_cross": "owiDsig_cross",
+                }
+            )
         else:
-            xr_dataset = xr_dataset.rename({
-                'alpha': 'owiAlpha',
-            })
-        xr_dataset = xr_dataset.rename({
-            'winddir_cross': 'owiWindDirection_cross',
-            'winddir_dual': 'owiWindDirection',
-            'windspeed_cross': 'owiWindSpeed_cross',
-            'windspeed_dual': 'owiWindSpeed',
-            'sigma0_detrend_cross': 'owiNrcs_detrend_cross',
-            'nesz_cross_flattened': 'owiNesz_cross_flattened'
-        })
+            xr_dataset = xr_dataset.rename(
+                {
+                    "alpha": "owiAlpha",
+                }
+            )
+        xr_dataset = xr_dataset.rename(
+            {
+                "winddir_cross": "owiWindDirection_cross",
+                "winddir_dual": "owiWindDirection",
+                "windspeed_cross": "owiWindSpeed_cross",
+                "windspeed_dual": "owiWindSpeed",
+                "sigma0_detrend_cross": "owiNrcs_detrend_cross",
+                "nesz_cross_flattened": "owiNesz_cross_flattened",
+            }
+        )
 
         # nrcs cross
         xr_dataset["owiNrcs_cross"] = xr_dataset["sigma0_ocean"].sel(
@@ -853,15 +872,16 @@ def makeL2asOwi(xr_dataset, config):
         xr_dataset = xr_dataset.assign(
             owiNesz_cross=(
                 ["line", "sample"],
-                xr_dataset.nesz.sel(
-                    pol=config["l2_params"]["crosspol"]).values,
+                xr_dataset.nesz.sel(pol=config["l2_params"]["crosspol"]).values,
             )
         )  # no flattening
         xr_dataset.owiNesz_cross.attrs["units"] = "m^2 / m^2"
         xr_dataset.owiNesz_cross.attrs["long_name"] = "Noise Equivalent SigmaNaught"
 
         xr_dataset.owiNesz_cross_flattened.attrs["units"] = "m^2 / m^2"
-        xr_dataset.owiNesz_cross_flattened.attrs["long_name"] = "Noise Equivalent SigmaNaught"
+        xr_dataset.owiNesz_cross_flattened.attrs["long_name"] = (
+            "Noise Equivalent SigmaNaught"
+        )
 
         xr_dataset["owiNrcs_cross_no_noise_correction"] = xr_dataset[
             "sigma0_ocean_raw"
@@ -902,8 +922,7 @@ def makeL2asOwi(xr_dataset, config):
             "long_name"
         ] = "Quality flag taking into account the local heterogeneity"
         xr_dataset["owiWindFilter"].attrs["valid_range"] = np.array([0, 3])
-        xr_dataset["owiWindFilter"].attrs["flag_values"] = np.array([
-                                                                    0, 1, 2, 3])
+        xr_dataset["owiWindFilter"].attrs["flag_values"] = np.array([0, 1, 2, 3])
         xr_dataset["owiWindFilter"].attrs[
             "flag_meanings"
         ] = "homogeneous_NRCS, heterogeneous_from_co-polarization_NRCS, heterogeneous_from_cross-polarization_NRCS, heterogeneous_from_dual-polarization_NRCS"
@@ -919,8 +938,7 @@ def makeL2asOwi(xr_dataset, config):
     xr_dataset["owiWindQuality"].attrs["flag_meanings"] = "good medium low poor"
     xr_dataset["owiWindQuality"].attrs["comment"] = "NOT COMPUTED YET"
 
-    xr_dataset = xr_dataset.rename(
-        {"line": "owiAzSize", "sample": "owiRaSize"})
+    xr_dataset = xr_dataset.rename({"line": "owiAzSize", "sample": "owiRaSize"})
 
     xr_dataset = xr_dataset.drop_vars(
         [
@@ -931,8 +949,7 @@ def makeL2asOwi(xr_dataset, config):
             "ancillary_wind",
             "nesz",
             "model_U10",
-            "model_V10"
-
+            "model_V10",
         ]
     )
     if "sigma0_raw__corrected" in xr_dataset:
@@ -996,8 +1013,7 @@ def preprocess(
         final dataset
     """
 
-    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(
-        filename)
+    sensor, sensor_longname, fct_meta, fct_dataset = getSensorMetaDataset(filename)
 
     if os.path.exists(config_path):
         with open(config_path, "r") as file:
@@ -1005,6 +1021,7 @@ def preprocess(
 
         # Validate configuration structure
         from grdwindinversion.utils import test_config
+
         test_config(config_base)
 
         try:
@@ -1013,8 +1030,7 @@ def preprocess(
         except Exception:
             raise KeyError("sensor %s not in this config" % sensor)
     else:
-        raise FileNotFoundError(
-            "config_path do not exists, got %s " % config_path)
+        raise FileNotFoundError("config_path do not exists, got %s " % config_path)
 
     recalibration = config["recalibration"]
     meta = fct_meta(filename)
@@ -1053,8 +1069,7 @@ def preprocess(
     if "add_nrcs_model" in config_base:
         add_nrcs_model = config_base["add_nrcs_model"]
         add_nrcs_model = False
-        logging.info(
-            f"Force add_nrcs_model to be false, before fixing an issue")
+        logging.info(f"Force add_nrcs_model to be false, before fixing an issue")
     else:
         add_nrcs_model = False
         logging.info(f"Not computing nrcs from model by default")
@@ -1091,15 +1106,15 @@ def preprocess(
         raise FileExistsError("outfile %s already exists" % out_file)
 
     ancillary_name = config["ancillary"]
-    map_model, ancillary_metadata = getAncillary(
-        meta, ancillary_name, config_base)
+    map_model, ancillary_metadata = getAncillary(meta, ancillary_name, config_base)
     if map_model is None:
         raise Exception(
             f"the weather model is not set `map_model` is None -> you probably don't have access to {ancillary_name} archive"
         )
     if ancillary_metadata is None:
         raise Exception(
-            f"ancillary_metadata must be defined. There is an error in getAncillary function")
+            f"ancillary_metadata must be defined. There is an error in getAncillary function"
+        )
 
     try:
         logging.info(f"recalibration = {recalibration}")
@@ -1175,7 +1190,9 @@ def preprocess(
         copol_gmf = "HH"
         crosspol_gmf = "VH"
 
-    if (sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D") and xsar_dataset.dataset.attrs["aux_cal"] is None:
+    if (
+        sensor == "S1A" or sensor == "S1B" or sensor == "S1C" or sensor == "S1D"
+    ) and xsar_dataset.dataset.attrs["aux_cal"] is None:
         raise ValueError(
             "aux_cal attribute is None, xsar_dataset.dataset.attrs['aux_cal'] must be set to a valid value"
         )
@@ -1185,12 +1202,14 @@ def preprocess(
         and xsar_dataset.dataset.attrs["aux_cal"].split("_")[-1][1:9] > "20190731"
     )
 
-    if cond_aux_cal and xr_dataset.attrs["swath"] == "EW" and "S1_EW_calG>20190731" in config.keys():
+    if (
+        cond_aux_cal
+        and xr_dataset.attrs["swath"] == "EW"
+        and "S1_EW_calG>20190731" in config.keys()
+    ):
         model_co = config["S1_EW_calG>20190731"]["GMF_" + copol_gmf + "_NAME"]
-        model_cross = config["S1_EW_calG>20190731"]["GMF_" +
-                                                    crosspol_gmf + "_NAME"]
-        dsig_cr_name = config["S1_EW_calG>20190731"]["dsig_" +
-                                                     crosspol_gmf + "_NAME"]
+        model_cross = config["S1_EW_calG>20190731"]["GMF_" + crosspol_gmf + "_NAME"]
+        dsig_cr_name = config["S1_EW_calG>20190731"]["dsig_" + crosspol_gmf + "_NAME"]
         apply_flattening = config["S1_EW_calG>20190731"]["apply_flattening"]
         dsig_cr_step = config["S1_EW_calG>20190731"]["dsig_cr_step"]
 
@@ -1298,19 +1317,17 @@ def preprocess(
 
     # Create main mask from land_mask
     # For now, mask uses the same values as land_mask
-    # Can be extended later to include ice (value 3) and other categories
+    # Can be extended later to include ice (value 4) and other categories
     logging.debug("mask is a copy of land_mask")
-    xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask)
+    xr_dataset["mask"] = xr.DataArray(xr_dataset.land_mask).astype(np.ubyte)
     xr_dataset.mask.attrs = {}
     xr_dataset.mask.attrs["long_name"] = "Mask of data"
-    xr_dataset.mask.attrs["valid_range"] = np.array([0, 3])
-    xr_dataset.mask.attrs["flag_values"] = np.array([0, 1, 2, 3])
-    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice"
+    xr_dataset.mask.attrs["flag_masks"] = np.array([0, 1, 2, 4, 8, 16], dtype=np.ubyte)
+    xr_dataset.mask.attrs["flag_meanings"] = "ocean coastal land ice no_data rfi"
 
     # ancillary
     xr_dataset["ancillary_wind_direction"] = (
-        90.0 - np.rad2deg(np.arctan2(xr_dataset.model_V10,
-                          xr_dataset.model_U10)) + 180
+        90.0 - np.rad2deg(np.arctan2(xr_dataset.model_V10, xr_dataset.model_U10)) + 180
     ) % 360
 
     # Keep ocean (0) and coastal (1) zones for ancillary wind
@@ -1351,14 +1368,23 @@ def preprocess(
         ),
     ).transpose(*xr_dataset["ancillary_wind_speed"].dims)
     xr_dataset["ancillary_wind"].attrs = {}
-    xr_dataset["ancillary_wind"].attrs["long_name"] = f"{ancillary_name} wind in complex form for inversion"
     xr_dataset["ancillary_wind"].attrs[
-        "description"] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
+        "long_name"
+    ] = f"{ancillary_name} wind in complex form for inversion"
+    xr_dataset["ancillary_wind"].attrs[
+        "description"
+    ] = "Complex wind (speed * exp(i*direction)) in antenna convention for GMF inversion"
 
     # Add ancillary metadata to model variables
 
     for attr_key, attr_value in ancillary_metadata.items():
-        for var_name in ['model_U10', 'model_V10', 'ancillary_wind_speed', 'ancillary_wind_direction', 'ancillary_wind']:
+        for var_name in [
+            "model_U10",
+            "model_V10",
+            "ancillary_wind_speed",
+            "ancillary_wind_direction",
+            "ancillary_wind",
+        ]:
             if var_name in xr_dataset:
                 xr_dataset[var_name].attrs[attr_key] = attr_value
 
@@ -1400,12 +1426,19 @@ def preprocess(
 
     # processing
     if dual_pol:
-        xr_dataset['sigma0_detrend_cross'] = xsarsea.sigma0_detrend(
-            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross)
+        xr_dataset["sigma0_detrend_cross"] = xsarsea.sigma0_detrend(
+            xr_dataset.sigma0.sel(pol=crosspol), xr_dataset.incidence, model=model_cross
+        )
 
         try:
-            xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-                ['line', 'sample'], windspeed.nesz_flattening(xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence).data))
+            xr_dataset = xr_dataset.assign(
+                nesz_cross_flattened=(
+                    ["line", "sample"],
+                    windspeed.nesz_flattening(
+                        xr_dataset.nesz.sel(pol=crosspol), xr_dataset.incidence
+                    ).data,
+                )
+            )
         except Exception as e:
             if apply_flattening:
                 # error
@@ -1414,15 +1447,22 @@ def preprocess(
                 raise e
             else:
                 # replace with nans
-                logging.warning("nesz_flattening warning => Error during NESZ flattening computation, but apply_flattening is False, \
+                logging.warning(
+                    "nesz_flattening warning => Error during NESZ flattening computation, but apply_flattening is False, \
                                 so continuing without nesz_cross_flattened and replace with NaNs\n \
-                                The error comes probably from NaN in incidence angle")
+                                The error comes probably from NaN in incidence angle"
+                )
                 config["return_status"] = 99
-                xr_dataset = xr_dataset.assign(nesz_cross_flattened=(
-                    ['line', 'sample'], np.full(xr_dataset.nesz.sel(pol=crosspol).shape, np.nan)))
+                xr_dataset = xr_dataset.assign(
+                    nesz_cross_flattened=(
+                        ["line", "sample"],
+                        np.full(xr_dataset.nesz.sel(pol=crosspol).shape, np.nan),
+                    )
+                )
 
-        xr_dataset['nesz_cross_flattened'].attrs[
-            "comment"] = 'nesz has been flattened using windspeed.nesz_flattening'
+        xr_dataset["nesz_cross_flattened"].attrs[
+            "comment"
+        ] = "nesz has been flattened using windspeed.nesz_flattening"
 
         if dsig_cr_step == "nrcs":
             # dsig
@@ -1450,13 +1490,15 @@ def preprocess(
                 "variable used to ponderate copol and crosspol. this ponderation is done will combining cost functions during inversion process"
             )
 
-            xr_dataset.dsig_cross.attrs["apply_flattening"] = str(
-                apply_flattening
-            )
+            xr_dataset.dsig_cross.attrs["apply_flattening"] = str(apply_flattening)
 
     if (recalibration) & ("SENTINEL" in sensor_longname):
-        xr_dataset.attrs["aux_cal_recal"] = xsar_dataset.datatree["recalibration"].attrs["aux_cal_new"]
-        xr_dataset.attrs["aux_pp1_recal"] = xsar_dataset.datatree["recalibration"].attrs["aux_pp1_new"]
+        xr_dataset.attrs["aux_cal_recal"] = xsar_dataset.datatree[
+            "recalibration"
+        ].attrs["aux_cal_new"]
+        xr_dataset.attrs["aux_pp1_recal"] = xsar_dataset.datatree[
+            "recalibration"
+        ].attrs["aux_pp1_new"]
 
     if add_nrcs_model:
         # add timing
@@ -1478,8 +1520,7 @@ def preprocess(
 
             @timing(logger=root_logger.info)
             def apply_lut_to_dataset():
-                lut = xsarsea.windspeed.get_model(
-                    gmf_name).to_lut(unit="linear")
+                lut = xsarsea.windspeed.get_model(gmf_name).to_lut(unit="linear")
 
                 def lut_selection(incidence, wspd, phi):
                     if "phi" in lut.coords:
@@ -1559,8 +1600,7 @@ def process_gradients(xr_dataset, config):
         )
 
         sigma0_detrend_combined = xr.concat(
-            [xr_dataset_100["sigma0_detrend"],
-                xr_dataset_100["sigma0_detrend_cross"]],
+            [xr_dataset_100["sigma0_detrend"], xr_dataset_100["sigma0_detrend_cross"]],
             dim="pol",
         )
         sigma0_detrend_combined["pol"] = [copol, crosspol]
@@ -1660,7 +1700,10 @@ def makeL2(
 
     # Only drop masks that actually exist in the dataset (with XSAR suffix)
     vars_to_drop = [
-        m+XSAR_MASK_SUFFIX for m in masks_to_drop if (m+XSAR_MASK_SUFFIX) in xr_dataset.data_vars]
+        m + XSAR_MASK_SUFFIX
+        for m in masks_to_drop
+        if (m + XSAR_MASK_SUFFIX) in xr_dataset.data_vars
+    ]
     if vars_to_drop:
         logging.info(f"Dropping external masks of dataset: {vars_to_drop}")
         xr_dataset = xr_dataset.drop_vars(vars_to_drop)
@@ -1714,7 +1757,8 @@ def makeL2(
     if dsig_cr_step == "nrcs":
         if dual_pol:
             logging.info(
-                "dsig_cr_step is nrcs : polarization are mixed at cost function step")
+                "dsig_cr_step is nrcs : polarization are mixed at cost function step"
+            )
         wind_co, wind_dual, windspeed_cr = inverse(
             dual_pol,
             inc=xr_dataset["incidence"],
@@ -1729,7 +1773,8 @@ def makeL2(
     elif dsig_cr_step == "wspd":
         if dual_pol:
             logging.info(
-                "dsig_cr_step is wspd : polarization are mixed at winds speed step")
+                "dsig_cr_step is wspd : polarization are mixed at winds speed step"
+            )
 
         if dual_pol:
             if apply_flattening:
@@ -1749,18 +1794,21 @@ def makeL2(
             dsig_cr_name=dsig_cr_name,
             model_co=model_co,
             model_cross=model_cross,
-            **kwargs
+            **kwargs,
         )
         if dual_pol and alpha is not None:
             xr_dataset["alpha"] = xr.DataArray(
-                data=alpha, dims=xr_dataset["incidence"].dims, coords=xr_dataset["incidence"].coords)
-            xr_dataset["alpha"].attrs["apply_flattening"] = str(
-                apply_flattening)
-            xr_dataset["alpha"].attrs["comments"] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
+                data=alpha,
+                dims=xr_dataset["incidence"].dims,
+                coords=xr_dataset["incidence"].coords,
+            )
+            xr_dataset["alpha"].attrs["apply_flattening"] = str(apply_flattening)
+            xr_dataset["alpha"].attrs[
+                "comments"
+            ] = "alpha used to ponderate copol and crosspol. this ponderation is done will combining wind speeds."
 
     else:
-        raise ValueError(
-            f"dsig_cr_step must be 'nrcs' or 'wspd', got {dsig_cr_step}")
+        raise ValueError(f"dsig_cr_step must be 'nrcs' or 'wspd', got {dsig_cr_step}")
 
     # windspeed_co
     xr_dataset["windspeed_co"] = np.abs(wind_co)
@@ -1895,7 +1943,7 @@ def makeL2(
         "swath": xr_dataset.attrs["swath"],
         "footprint": xr_dataset.attrs["footprint"],
         "coverage": xr_dataset.attrs["coverage"],
-        "cross_antimeridian": str(config["meta"].cross_antimeridian)
+        "cross_antimeridian": str(config["meta"].cross_antimeridian),
     }
 
     for recalib_attrs in ["aux_pp1_recal", "aux_pp1", "aux_cal_recal", "aux_cal"]:
@@ -1912,6 +1960,16 @@ def makeL2(
     for sup_attr in _S1_added_attrs + _RCM_added_attrs:
         if sup_attr in xr_dataset.attrs:
             attrs[sup_attr] = xr_dataset.attrs[sup_attr]
+
+    if "RADARSAT Constellation" in sensor_longname:
+        year = firstMeasurementTime[:4]
+        attrs["copyright"] = (
+            f"RADARSAT Constellation Mission Imagery Copyright Government of Canada ({year})"
+        )
+        attrs["credit"] = "RADARSAT is an official mark of the Canadian Space Agency"
+    elif "SENTINEL-1" in sensor_longname:
+        year = firstMeasurementTime[:4]
+        attrs["credit"] = f"Contains modified Copernicus Sentinel data ({year})"
 
     attrs["footprint"] = str(attrs["footprint"])
 
@@ -1933,8 +1991,7 @@ def makeL2(
             temp_out_file = tmp_file.name
 
         # Écrire xr_dataset_streaks dans le fichier temporaire
-        xr_dataset_streaks.to_netcdf(
-            temp_out_file, mode="w", group="owiWindStreaks")
+        xr_dataset_streaks.to_netcdf(temp_out_file, mode="w", group="owiWindStreaks")
 
         # Charger le fichier temporaire et l'ajouter au fichier final en tant que groupe
         with xr.open_dataset(temp_out_file, group="owiWindStreaks") as ds_streaks:
